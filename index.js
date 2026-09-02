@@ -130,7 +130,7 @@ function buildPanelRows(guildId) {
 
   const row3 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('polo_obfuscate').setLabel('Obfuscate').setEmoji('🛠️').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('polo_hub').setLabel('Hub').setEmoji('🎯').setStyle(ButtonStyle.Danger),
+   // new ButtonBuilder().setCustomId('polo_hub').setLabel('Hub').setEmoji('🎯').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('polo_help').setLabel('Help').setEmoji('❓').setStyle(ButtonStyle.Danger),
   );
 
