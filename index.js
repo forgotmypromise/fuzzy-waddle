@@ -168,12 +168,15 @@ if (interaction.commandName === 'obfuscate') {
 }
     if (interaction.commandName === 'setlink') {
       const button = interaction.options.getString('button', true); // 'getLink' | 'xpLink'
-      const url = interaction.options.getString('url', true);
+    const url = interaction.options.getString('url');
 
-      if (!/^https?:\/\//i.test(url)) {
-        await interaction.reply({ content: '❌ That doesn\'t look like a valid URL. It must start with http:// or https://', ephemeral: true });
-        return;
-      }
+if (!url || !url.trim()) {
+    await interaction.reply({
+        content: '❌ Please provide a value.',
+        ephemeral: true
+    });
+    return;
+}
 
       setGuildLink(interaction.guildId, button, url);
       const labels = {
