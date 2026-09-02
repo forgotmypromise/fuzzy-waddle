@@ -13,9 +13,10 @@ const {
   Routes,
 } = require('discord.js');
 
-const { getGuildConfig, setGuildLink, setPremiumRole } = require('./lib/storage');
-const { redeemKey } = require('./lib/keys');
-const { useReset, getRemaining, MAX_RESETS } = require('./lib/resets');
+const { getGuildConfig, setGuildLink, setPremiumRole, setResetLimit } = require('./lib/storage');
+const { redeemKey, addKeys } = require('./lib/keys');
+const { useReset, getRemaining, resetUser, DEFAULT_MAX_RESETS } = require('./lib/resets');
+const { generateKey } = require('./lib/keygen');
 const { commandDefs } = require('./lib/commands');
 const DATA_DIR = require('./lib/data-dir');
 
@@ -105,12 +106,12 @@ function buildPanelRows(guildId) {
   const config = getGuildConfig(guildId);
 
   const getButton = config.getLink
-    ? new ButtonBuilder().setLabel('Get').setEmoji('📄').setStyle(ButtonStyle.Link).setURL(config.getLink)
-    : new ButtonBuilder().setCustomId('polo_get').setLabel('Get').setEmoji('📄').setStyle(ButtonStyle.Danger);
+    ? new ButtonBuilder().setLabel('Get Script').setEmoji('📄').setStyle(ButtonStyle.Link).setURL(config.getLink)
+    : new ButtonBuilder().setCustomId('polo_get').setLabel('Get Script').setEmoji('📄').setStyle(ButtonStyle.Danger);
 
   const xpButton = config.xpLink
-    ? new ButtonBuilder().setLabel('Get XP').setEmoji('⚡').setStyle(ButtonStyle.Link).setURL(config.xpLink)
-    : new ButtonBuilder().setCustomId('polo_xp').setLabel('Get XP').setEmoji('⚡').setStyle(ButtonStyle.Danger);
+    ? new ButtonBuilder().setLabel('Get XP Script').setEmoji('⚡').setStyle(ButtonStyle.Link).setURL(config.xpLink)
+    : new ButtonBuilder().setCustomId('polo_xp').setLabel('Get XP Script').setEmoji('⚡').setStyle(ButtonStyle.Danger);
 
   const premiumButton = config.premiumLink
     ? new ButtonBuilder().setLabel('Get Premium Key').setEmoji('💎').setStyle(ButtonStyle.Link).setURL(config.premiumLink)
@@ -130,8 +131,10 @@ function buildPanelRows(guildId) {
 
   const row3 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('polo_obfuscate').setLabel('Obfuscate').setEmoji('🛠️').setStyle(ButtonStyle.Secondary),
-   // new ButtonBuilder().setCustomId('polo_hub').setLabel('Hub').setEmoji('🎯').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('polo_help').setLabel('Help').setEmoji('❓').setStyle(ButtonStyle.Danger),
+  
+    config.helpLink
+      ? new ButtonBuilder().setLabel('Help').setEmoji('❓').setStyle(ButtonStyle.Link).setURL(config.helpLink)
+      : new ButtonBuilder().setCustomId('polo_help').setLabel('Help').setEmoji('❓').setStyle(ButtonStyle.Danger),
   );
 
   return [row1, row2, row3];
@@ -171,7 +174,13 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       setGuildLink(interaction.guildId, button, url);
-      const labels = { getLink: 'Get', xpLink: 'Get XP', premiumLink: 'Get Premium Key' };
+      const labels = {
+        getLink: 'Get',
+        xpLink: 'Get XP',
+        premiumLink: 'Get Premium Key',
+        hubLink: 'Hub',
+        helpLink: 'Help',
+      };
       await interaction.reply({
         content: `✅ **${labels[button]}** button will now open: ${url}\n\nRun \`/panel\` again to post an updated panel — existing posted panels won't update automatically.`,
         ephemeral: true,
@@ -184,6 +193,50 @@ client.on('interactionCreate', async (interaction) => {
       setPremiumRole(interaction.guildId, role.id);
       await interaction.reply({
         content: `✅ **${role.name}** is now the premium role. **View Status** will check members against it.`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (interaction.commandName === 'setresetlimit') {
+      const amount = interaction.options.getInteger('amount', true);
+      setResetLimit(interaction.guildId, amount);
+      await interaction.reply({
+        content: `✅ Reset limit set to **${amount}** per member.`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (interaction.commandName === 'resetresets') {
+      const user = interaction.options.getUser('user', true);
+      const maxResets = getGuildConfig(interaction.guildId).resetLimit || DEFAULT_MAX_RESETS;
+      resetUser(interaction.guildId, user.id);
+      await interaction.reply({
+        content: `✅ Cleared resets for **${user.tag}** — they now have **${maxResets}/${maxResets}** available again.`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (interaction.commandName === 'genkeys') {
+      const amount = interaction.options.getInteger('amount', true);
+      const format = interaction.options.getString('format') || 'polo';
+
+      const newKeys = Array.from({ length: amount }, () => generateKey(format));
+      addKeys(newKeys);
+
+      await interaction.reply({
+        content: `✅ Generated **${amount}** key(s) and added them to \`keys.txt\`:\n\`\`\`\n${newKeys.join('\n')}\n\`\`\``,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (interaction.commandName === 'obfuscate') {
+      // Intentionally not implemented — see README for why.
+      await interaction.reply({
+        content: '🛠️ `/obfuscate` is not implemented yet.',
         ephemeral: true,
       });
       return;
@@ -209,19 +262,20 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.customId === 'polo_reset') {
-      const { success, remaining } = useReset(interaction.guildId, interaction.user.id);
+      const maxResets = getGuildConfig(interaction.guildId).resetLimit || DEFAULT_MAX_RESETS;
+      const { success, remaining } = useReset(interaction.guildId, interaction.user.id, maxResets);
 
       // TODO: put your actual reset logic here (whatever "reset" does for
       // your system) once success is true.
 
       if (success) {
         await interaction.reply({
-          content: `🔄 Reset complete. You have **${remaining}/${MAX_RESETS}** resets left.`,
+          content: `🔄 Reset complete. You have **${remaining}/${maxResets}** resets left.`,
           ephemeral: true,
         });
       } else {
         await interaction.reply({
-          content: `❌ You've used all **${MAX_RESETS}** of your resets. Please contact staff for further help.`,
+          content: `❌ You've used all **${maxResets}** of your resets. Please contact staff for further help.`,
           ephemeral: true,
         });
       }
@@ -230,6 +284,7 @@ client.on('interactionCreate', async (interaction) => {
 
     if (interaction.customId === 'polo_status') {
       const config = getGuildConfig(interaction.guildId);
+      const maxResets = config.resetLimit || DEFAULT_MAX_RESETS;
 
       if (!config.premiumRoleId) {
         await interaction.reply({
@@ -241,12 +296,12 @@ client.on('interactionCreate', async (interaction) => {
 
       const member = interaction.member;
       const isPremium = member?.roles?.cache?.has(config.premiumRoleId) ?? false;
-      const resetsLeft = getRemaining(interaction.guildId, interaction.user.id);
+      const resetsLeft = getRemaining(interaction.guildId, interaction.user.id, maxResets);
 
       await interaction.reply({
         content: isPremium
-          ? `📊 **Status:** 💎 Premium\n🔄 Resets remaining: **${resetsLeft}/${MAX_RESETS}**`
-          : `📊 **Status:** Not Premium\n🔄 Resets remaining: **${resetsLeft}/${MAX_RESETS}**`,
+          ? `📊 **Status:** 💎 Premium\n🔄 Resets remaining: **${resetsLeft}/${maxResets}**`
+          : `📊 **Status:** Not Premium\n🔄 Resets remaining: **${resetsLeft}/${maxResets}**`,
         ephemeral: true,
       });
       return;
@@ -258,8 +313,8 @@ client.on('interactionCreate', async (interaction) => {
       polo_xp: '⚡ No link has been set for **Get XP** yet. An admin can run `/setlink button:Get XP url:<link>`.',
       polo_premium: '💎 No link has been set for **Get Premium Key** yet. An admin can run `/setlink button:Get Premium Key url:<link>`.',
       polo_obfuscate: '🛠️ **Obfuscate** — this action is not implemented. See the README for details.',
-      polo_hub: '🎯 **Hub** — link to or open your script/asset hub.',
-      polo_help: '❓ **Help** — post your support info or a link to your docs/support server.',
+      polo_hub: '🎯 No link has been set for **Hub** yet. An admin can run `/setlink button:Hub url:<link>`.',
+      polo_help: '❓ No link has been set for **Help** yet. An admin can run `/setlink button:Help url:<link>`.',
     };
 
     const content = replies[interaction.customId];
