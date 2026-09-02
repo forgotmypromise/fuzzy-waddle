@@ -80,20 +80,20 @@ async function registerCommands() {
 // ---------- Embed ----------
 function buildPanelEmbed() {
   return new EmbedBuilder()
-    .setColor(0x2b2d31)
-    .setTitle('🐴 Polo Panel')
+    .setColor(0xab0000)
+    .setTitle('🎮 Polo Panel')
     .setDescription(
-      '**Premium Distribution System**\n\n' +
+      '**Key Manager System**\n\n' +
       '🚀 Access and manage your account through the buttons below.\n\n' +
       '**Available Features:**\n' +
-      '📄 **Get** — Get\n' +
-      '⚡ **Get XP** — test\n' +
+      '📄 **Get Script** — Get\n' +
+      '⚡ **Get XP Script** — test\n' +
       '🔑 **Redeem Key** — Upgrade your access level\n' +
       '🔄 **Reset** — Reset\n' +
       '📊 **View Status** — Check your account info\n' +
       '❓ **Help** — Get support and guidance'
     )
-    .setFooter({ text: 'Polo Panel • Premium Script Distribution System' })
+    .setFooter({ text: 'Polo Panel • Key Manager System' })
     .setTimestamp();
 }
 
