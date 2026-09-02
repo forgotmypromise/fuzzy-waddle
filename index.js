@@ -327,23 +327,36 @@ if (interaction.commandName === 'obfuscate') {
   }
 
   // ---------- Modal submit (key redemption) ----------
-  if (interaction.isModalSubmit() && interaction.customId === 'polo_redeem_modal') {
-    const inputKey = interaction.fields.getTextInputValue('key_input');
-    const success = redeemKey(inputKey);
+ if (interaction.isModalSubmit() && interaction.customId === 'polo_redeem_modal') {
+  const inputKey = interaction.fields.getTextInputValue('key_input');
+  const success = redeemKey(inputKey);
 
-    if (success) {
+  if (success) {
+    const roleId = '1409762874754203742';
+
+    try {
+      // Give the role to the person who redeemed the key
+      await interaction.member.roles.add(roleId);
+
       await interaction.reply({
-        content: `✅ Key redeemed successfully! You can now customize what happens next (grant a role, log it, etc.) in \`index.js\`.`,
+        content: `✅ Redeemed key successfully! You have been given the <@&${roleId}> role.`,
         ephemeral: true,
       });
-    } else {
+    } catch (error) {
+      console.error('Failed to give redemption role:', error);
+
       await interaction.reply({
-        content: `❌ That key is invalid or has already been used.`,
+        content: `✅ Key redeemed successfully, but I failed to give you the role. Please contact an administrator.`,
         ephemeral: true,
       });
     }
+  } else {
+    await interaction.reply({
+      content: `❌ That key is invalid or has already been used.`,
+      ephemeral: true,
+    });
   }
-});
+}
 const {
     AttachmentBuilder
 } = require('discord.js');
