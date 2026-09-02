@@ -1,0 +1,17 @@
+{
+  "name": "polo-panel",
+  "version": "1.0.0",
+  "description": "Recreation of the Polo Panel Discord embed/button UI",
+  "main": "index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.15.3",
+    "dotenv": "^16.4.5"
+  }
+}

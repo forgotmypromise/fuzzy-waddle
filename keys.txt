@@ -1,0 +1,6 @@
+# One key per line. Lines starting with # are ignored.
+# Add your real keys below, one per line. Each key is removed
+# from this file automatically the moment someone redeems it.
+EXAMPLE-KEY-0001
+EXAMPLE-KEY-0002
+EXAMPLE-KEY-0003

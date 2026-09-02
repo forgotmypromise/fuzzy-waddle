@@ -1,0 +1,9 @@
+node_modules/
+.env
+npm-debug.log*
+
+# Local runtime data — on Railway this lives on a mounted Volume instead,
+# so these shouldn't be committed either way.
+config.json
+resets.json
+keys.txt
