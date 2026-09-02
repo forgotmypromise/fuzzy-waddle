@@ -345,8 +345,7 @@ if (interaction.commandName === 'obfuscate') {
   }
 });
 const {
-    AttachmentBuilder,
-    EmbedBuilder
+    AttachmentBuilder
 } = require('discord.js');
 
 const fs = require('fs');
