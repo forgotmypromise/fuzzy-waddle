@@ -342,7 +342,120 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
+const {
+    AttachmentBuilder,
+    EmbedBuilder
+} = require('discord.js');
 
+const fs = require('fs');
+const path = require('path');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+
+const execFileAsync = promisify(execFile);
+
+async function handleObfuscate(interaction) {
+    const attachment = interaction.options.getAttachment('file');
+    const preset = interaction.options.getString('preset') || 'medium';
+
+    if (!attachment.name.endsWith('.lua')) {
+        return interaction.reply({
+            content: '❌ Please upload a `.lua` file.',
+            ephemeral: true
+        });
+    }
+
+    if (attachment.size > 2 * 1024 * 1024) {
+        return interaction.reply({
+            content: '❌ File is too large. Maximum size is 2MB.',
+            ephemeral: true
+        });
+    }
+
+    await interaction.deferReply();
+
+    const jobId = `${interaction.user.id}-${Date.now()}`;
+
+    const tempDir = path.join(__dirname, 'temp');
+    if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const inputPath = path.join(tempDir, `${jobId}-input.lua`);
+    const outputPath = path.join(tempDir, `${jobId}-obfuscated.lua`);
+
+    try {
+        // Download attachment
+        const response = await fetch(attachment.url);
+
+        if (!response.ok) {
+            throw new Error('Failed to download attachment');
+        }
+
+        const buffer = Buffer.from(await response.arrayBuffer());
+        fs.writeFileSync(inputPath, buffer);
+
+        /*
+         * Run your obfuscator here.
+         *
+         * Replace this with the exact CLI/API from fuzzy-waddle
+         * once its command structure is confirmed.
+         */
+
+        await execFileAsync(
+            'lua',
+            [
+                path.join(__dirname, 'obfuscator', 'obfuscate.lua'),
+                inputPath,
+                outputPath,
+                preset
+            ],
+            {
+                timeout: 30000,
+                maxBuffer: 10 * 1024 * 1024
+            }
+        );
+
+        if (!fs.existsSync(outputPath)) {
+            throw new Error('Obfuscator did not generate an output file');
+        }
+
+        const outputFile = new AttachmentBuilder(outputPath, {
+            name: `obfuscated-${attachment.name}`
+        });
+
+        const embed = new EmbedBuilder()
+            .setTitle('🔒 Lua Obfuscated')
+            .setDescription(
+                `Successfully obfuscated **${attachment.name}**\n\n` +
+                `Preset: **${preset}**`
+            );
+
+        await interaction.editReply({
+            embeds: [embed],
+            files: [outputFile]
+        });
+
+    } catch (error) {
+        console.error('Obfuscation error:', error);
+
+        await interaction.editReply({
+            content: `❌ Obfuscation failed: \`${error.message}\``
+        });
+
+    } finally {
+        // Cleanup after a short delay
+        setTimeout(() => {
+            for (const file of [inputPath, outputPath]) {
+                if (fs.existsSync(file)) {
+                    try {
+                        fs.unlinkSync(file);
+                    } catch {}
+                }
+            }
+        }, 10000);
+    }
+}
 client.login(process.env.DISCORD_TOKEN).catch((err) => {
   console.error(
     'Failed to log in to Discord. This almost always means DISCORD_TOKEN is ' +
