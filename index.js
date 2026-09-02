@@ -163,7 +163,9 @@ client.on('interactionCreate', async (interaction) => {
       });
       return;
     }
-
+if (interaction.commandName === 'obfuscate') {
+    await handleObfuscate(interaction);
+}
     if (interaction.commandName === 'setlink') {
       const button = interaction.options.getString('button', true); // 'getLink' | 'xpLink'
       const url = interaction.options.getString('url', true);
