@@ -13,6 +13,7 @@ const {
     AttachmentBuilder,
     REST,
     Routes,
+    ActivityType
 } = require('discord.js');
 
 const fs = require('fs');
@@ -27,20 +28,53 @@ const {
     setResetLimit
 } = require('./lib/storage');
 
-const { redeemKey, addKeys } = require('./lib/keys');
-
-const {
-    useReset,
-    getRemaining,
-    resetUser,
-    DEFAULT_MAX_RESETS
-} = require('./lib/resets');
+// Load modules without assuming every function exists
+const keysModule = require('./lib/keys');
+const resetsModule = require('./lib/resets');
 
 const { generateKey } = require('./lib/keygen');
 const { commandDefs } = require('./lib/commands');
 const DATA_DIR = require('./lib/data-dir');
 
 const execFileAsync = promisify(execFile);
+
+
+// =====================================================
+// MODULE FUNCTION COMPATIBILITY
+// =====================================================
+
+// Try common names so the bot doesn't crash from a missing export.
+// Ideally your lib/keys.js should export addKeys directly.
+const redeemKey =
+    keysModule.redeemKey ||
+    keysModule.redeem ||
+    keysModule.useKey;
+
+const addKeys =
+    keysModule.addKeys ||
+    keysModule.addKeyBatch ||
+    keysModule.saveKeys ||
+    keysModule.addMultipleKeys;
+
+// Reset functions
+const useReset =
+    resetsModule.useReset ||
+    resetsModule.consumeReset;
+
+const getRemaining =
+    resetsModule.getRemaining ||
+    resetsModule.getResetsRemaining;
+
+const resetUser =
+    resetsModule.resetUser ||
+    resetsModule.resetResets ||
+    resetsModule.clearUserResets;
+
+const DEFAULT_MAX_RESETS =
+    resetsModule.DEFAULT_MAX_RESETS ||
+    resetsModule.DEFAULT_RESETS ||
+    3;
+
 
 // =====================================================
 // ENVIRONMENT VALIDATION
@@ -69,6 +103,7 @@ console.log(
     }`
 );
 
+
 // =====================================================
 // ERROR HANDLING
 // =====================================================
@@ -81,6 +116,7 @@ process.on('uncaughtException', (err) => {
     console.error('Uncaught exception:', err);
 });
 
+
 // =====================================================
 // DISCORD CLIENT
 // =====================================================
@@ -88,6 +124,7 @@ process.on('uncaughtException', (err) => {
 const client = new Client({
     intents: [GatewayIntentBits.Guilds]
 });
+
 
 // =====================================================
 // COMMAND REGISTRATION
@@ -121,6 +158,7 @@ async function registerCommands() {
     }
 }
 
+
 // =====================================================
 // URL NORMALIZER
 // =====================================================
@@ -142,6 +180,7 @@ function normalizeURL(value) {
 
     return `https://${value}`;
 }
+
 
 // =====================================================
 // PANEL EMBED
@@ -168,6 +207,7 @@ function buildPanelEmbed() {
         .setTimestamp();
 }
 
+
 // =====================================================
 // SAFE LINK BUTTON
 // =====================================================
@@ -189,7 +229,7 @@ function createLinkOrButton(
                 .setStyle(ButtonStyle.Link)
                 .setURL(normalizedURL);
         } catch (error) {
-            console.error(`Invalid URL for ${label}:`, normalizedURL);
+            console.error(`Invalid URL for ${label}:`, error);
         }
     }
 
@@ -200,18 +240,18 @@ function createLinkOrButton(
         .setStyle(fallbackStyle);
 }
 
+
 // =====================================================
 // PANEL BUTTONS
 // =====================================================
 
 function buildPanelRows(guildId) {
-    let config;
+    let config = {};
 
     try {
         config = getGuildConfig(guildId) || {};
     } catch (error) {
         console.error('Failed to load guild config:', error);
-        config = {};
     }
 
     const getButton = createLinkOrButton(
@@ -282,18 +322,58 @@ function buildPanelRows(guildId) {
     return [row1, row2, row3];
 }
 
+
 // =====================================================
-// READY
+// READY + ROTATING STATUS
 // =====================================================
 
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
+
     await registerCommands();
+
+    const statuses = [
+        {
+            name: '/polo',
+            type: ActivityType.Watching
+        },
+        {
+            name: 'RH2',
+            type: ActivityType.Competing
+        },
+        {
+            name: 'polohub',
+            type: ActivityType.Playing
+        }
+    ];
+
+    let currentStatus = 0;
+
+    function updateStatus() {
+        const status = statuses[currentStatus];
+
+        client.user.setPresence({
+            activities: [{
+                name: status.name,
+                type: status.type
+            }],
+            status: 'online'
+        });
+
+        currentStatus =
+            (currentStatus + 1) % statuses.length;
+    }
+
+    updateStatus();
+
+    setInterval(updateStatus, 10000);
 });
+
 
 client.on('error', (err) => {
     console.error('Discord client error:', err);
 });
+
 
 // =====================================================
 // INTERACTION HANDLER
@@ -302,7 +382,9 @@ client.on('error', (err) => {
 client.on('interactionCreate', async (interaction) => {
     try {
 
-        // ================= SLASH COMMANDS =================
+        // =============================================
+        // SLASH COMMANDS
+        // =============================================
 
         if (interaction.isChatInputCommand()) {
 
@@ -315,10 +397,14 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
+
             // /setlink
             if (interaction.commandName === 'setlink') {
-                const button = interaction.options.getString('button', true);
-                const url = interaction.options.getString('url', true);
+                const button =
+                    interaction.options.getString('button', true);
+
+                const url =
+                    interaction.options.getString('url', true);
 
                 if (!url || !url.trim()) {
                     await interaction.reply({
@@ -352,37 +438,55 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
+
             // /setpremiumrole
             if (interaction.commandName === 'setpremiumrole') {
-                const role = interaction.options.getRole('role', true);
+                const role =
+                    interaction.options.getRole('role', true);
 
                 setPremiumRole(interaction.guildId, role.id);
 
                 await interaction.reply({
-                    content: `✅ **${role.name}** is now the premium role.`,
+                    content:
+                        `✅ **${role.name}** is now the premium role.`,
                     ephemeral: true
                 });
 
                 return;
             }
 
+
             // /setresetlimit
             if (interaction.commandName === 'setresetlimit') {
-                const amount = interaction.options.getInteger('amount', true);
+                const amount =
+                    interaction.options.getInteger('amount', true);
 
                 setResetLimit(interaction.guildId, amount);
 
                 await interaction.reply({
-                    content: `✅ Reset limit set to **${amount}** per member.`,
+                    content:
+                        `✅ Reset limit set to **${amount}** per member.`,
                     ephemeral: true
                 });
 
                 return;
             }
 
+
             // /resethwidresets
             if (interaction.commandName === 'resethwidresets') {
-                const user = interaction.options.getUser('user', true);
+
+                if (typeof resetUser !== 'function') {
+                    await interaction.reply({
+                        content:
+                            '❌ Reset system error: `resetUser` is not exported from lib/resets.js.',
+                        ephemeral: true
+                    });
+                    return;
+                }
+
+                const user =
+                    interaction.options.getUser('user', true);
 
                 const config =
                     getGuildConfig(interaction.guildId) || {};
@@ -402,8 +506,25 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
+
             // /genkeys
             if (interaction.commandName === 'genkeys') {
+
+                if (typeof addKeys !== 'function') {
+                    console.error(
+                        'keys.js exports:',
+                        Object.keys(keysModule)
+                    );
+
+                    await interaction.reply({
+                        content:
+                            '❌ Key storage error. `addKeys` is not exported from `lib/keys.js`. Check the bot console for available exports.',
+                        ephemeral: true
+                    });
+
+                    return;
+                }
+
                 const amount =
                     interaction.options.getInteger('amount', true);
 
@@ -427,6 +548,7 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
+
             // /obfuscate
             if (interaction.commandName === 'obfuscate') {
                 await handleObfuscate(interaction);
@@ -434,12 +556,16 @@ client.on('interactionCreate', async (interaction) => {
             }
         }
 
-        // ================= BUTTONS =================
+
+        // =============================================
+        // BUTTONS
+        // =============================================
 
         if (interaction.isButton()) {
 
             // REDEEM
             if (interaction.customId === 'polo_redeem') {
+
                 const modal = new ModalBuilder()
                     .setCustomId('polo_redeem_modal')
                     .setTitle('Redeem a Key');
@@ -458,8 +584,22 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
+
             // RESET
             if (interaction.customId === 'polo_reset') {
+
+                if (
+                    typeof useReset !== 'function' ||
+                    typeof getRemaining !== 'function'
+                ) {
+                    await interaction.reply({
+                        content:
+                            '❌ Reset system is not configured correctly in `lib/resets.js`.',
+                        ephemeral: true
+                    });
+                    return;
+                }
+
                 const config =
                     getGuildConfig(interaction.guildId) || {};
 
@@ -490,19 +630,25 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
+
             // STATUS
             if (interaction.customId === 'polo_status') {
+
                 const config =
                     getGuildConfig(interaction.guildId) || {};
 
                 const maxResets =
                     config.resetLimit || DEFAULT_MAX_RESETS;
 
-                const resetsLeft = getRemaining(
-                    interaction.guildId,
-                    interaction.user.id,
-                    maxResets
-                );
+                let resetsLeft = maxResets;
+
+                if (typeof getRemaining === 'function') {
+                    resetsLeft = getRemaining(
+                        interaction.guildId,
+                        interaction.user.id,
+                        maxResets
+                    );
+                }
 
                 if (!config.premiumRoleId) {
                     await interaction.reply({
@@ -517,7 +663,9 @@ client.on('interactionCreate', async (interaction) => {
                 const member = interaction.member;
 
                 const isPremium =
-                    member?.roles?.cache?.has(config.premiumRoleId) ?? false;
+                    member?.roles?.cache?.has(
+                        config.premiumRoleId
+                    ) ?? false;
 
                 await interaction.reply({
                     content: isPremium
@@ -529,7 +677,7 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
-            // PLACEHOLDER BUTTONS
+
             const replies = {
                 polo_get:
                     '📄 No link has been set for **Get Script** yet.',
@@ -555,12 +703,25 @@ client.on('interactionCreate', async (interaction) => {
             return;
         }
 
-        // ================= MODAL =================
+
+        // =============================================
+        // MODAL
+        // =============================================
 
         if (
             interaction.isModalSubmit() &&
             interaction.customId === 'polo_redeem_modal'
         ) {
+
+            if (typeof redeemKey !== 'function') {
+                await interaction.reply({
+                    content:
+                        '❌ Key system is not configured correctly in `lib/keys.js`.',
+                    ephemeral: true
+                });
+                return;
+            }
+
             const inputKey =
                 interaction.fields.getTextInputValue('key_input');
 
@@ -578,6 +739,7 @@ client.on('interactionCreate', async (interaction) => {
                             `You have been given the <@&${roleId}> role.`,
                         ephemeral: true
                     });
+
                 } catch (error) {
                     console.error(
                         'Failed to give redemption role:',
@@ -590,6 +752,7 @@ client.on('interactionCreate', async (interaction) => {
                         ephemeral: true
                     });
                 }
+
             } else {
                 await interaction.reply({
                     content:
@@ -602,6 +765,7 @@ client.on('interactionCreate', async (interaction) => {
         }
 
     } catch (error) {
+
         console.error('Interaction error:', error);
 
         try {
@@ -610,6 +774,7 @@ client.on('interactionCreate', async (interaction) => {
                     content:
                         '❌ An error occurred while processing this interaction.'
                 });
+
             } else if (!interaction.replied) {
                 await interaction.reply({
                     content:
@@ -617,6 +782,7 @@ client.on('interactionCreate', async (interaction) => {
                     ephemeral: true
                 });
             }
+
         } catch (replyError) {
             console.error(
                 'Failed to send error response:',
@@ -626,11 +792,13 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
+
 // =====================================================
 // OBFUSCATE HANDLER
 // =====================================================
 
 async function handleObfuscate(interaction) {
+
     const attachment =
         interaction.options.getAttachment('file');
 
@@ -686,13 +854,10 @@ async function handleObfuscate(interaction) {
         path.join(tempDir, `${jobId}-obfuscated.lua`);
 
     try {
-        const response =
-            await fetch(attachment.url);
+        const response = await fetch(attachment.url);
 
         if (!response.ok) {
-            throw new Error(
-                'Failed to download attachment'
-            );
+            throw new Error('Failed to download attachment');
         }
 
         const buffer =
@@ -750,8 +915,12 @@ async function handleObfuscate(interaction) {
         });
 
     } finally {
+
         setTimeout(() => {
-            for (const file of [inputPath, outputPath]) {
+            for (const file of [
+                inputPath,
+                outputPath
+            ]) {
                 if (fs.existsSync(file)) {
                     try {
                         fs.unlinkSync(file);
@@ -761,6 +930,7 @@ async function handleObfuscate(interaction) {
         }, 10000);
     }
 }
+
 
 // =====================================================
 // LOGIN
@@ -772,6 +942,5 @@ client.login(process.env.DISCORD_TOKEN)
             'Failed to log in to Discord:',
             err
         );
-
         process.exit(1);
     });
