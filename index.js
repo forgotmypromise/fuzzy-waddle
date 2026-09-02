@@ -86,10 +86,10 @@ function buildPanelEmbed() {
       '**Key Manager System**\n\n' +
       '🚀 Access and manage your account through the buttons below.\n\n' +
       '**Available Features:**\n' +
-      '📄 **Get Script** — Get\n' +
-      '⚡ **Get XP Script** — test\n' +
+      '📄 **Get Script** — Get Script\n' +
+      '⚡ **Get XP Script** — Get XP Script\n' +
       '🔑 **Redeem Key** — Upgrade your access level\n' +
-      '🔄 **Reset** — Reset\n' +
+      '🔄 **Reset HWID** — Reset HWID\n' +
       '📊 **View Status** — Check your account info\n' +
       '❓ **Help** — Get support and guidance'
     )
