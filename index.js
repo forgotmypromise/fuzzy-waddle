@@ -335,18 +335,17 @@ if (interaction.commandName === 'obfuscate') {
     const roleId = '1409762874754203742';
 
     try {
-      // Give the role to the person who redeemed the key
       await interaction.member.roles.add(roleId);
 
       await interaction.reply({
-        content: `✅ Redeemed key successfully! You have been given the <@&${roleId}> role.`,
+        content: `✅ Key redeemed successfully! You have been given the <@&${roleId}> role.`,
         ephemeral: true,
       });
     } catch (error) {
       console.error('Failed to give redemption role:', error);
 
       await interaction.reply({
-        content: `✅ Key redeemed successfully, but I failed to give you the role. Please contact an administrator.`,
+        content: `✅ Key redeemed successfully, but I couldn't give you the role. Please contact an administrator.`,
         ephemeral: true,
       });
     }
@@ -356,7 +355,10 @@ if (interaction.commandName === 'obfuscate') {
       ephemeral: true,
     });
   }
-}
+} // closes the if
+
+}); // closes client.on('interactionCreate', ...)
+
 const {
     AttachmentBuilder
 } = require('discord.js');
