@@ -25,7 +25,11 @@ const {
     getGuildConfig,
     setGuildLink,
     setPremiumRole,
-    setResetLimit
+    setResetLimit,
+    loadWhitelist,
+    addToWhitelist,
+    removeFromWhitelist,
+    isWhitelisted
 } = require('./lib/storage');
 
 // Load modules without assuming every function exists
@@ -396,7 +400,80 @@ client.on('interactionCreate', async (interaction) => {
                 });
                 return;
             }
+// /whitelist
+if (interaction.commandName === 'whitelist') {
+    // Only owners + admins can manage the whitelist
+    if (!canUseRestrictedCommand(interaction) || isWhitelisted(interaction.user.id) && !getOwnerIds().includes(interaction.user.id) && !interaction.memberPermissions?.has('Administrator') && !interaction.memberPermissions?.has('ManageGuild')) {
+        // Extra safety: normal whitelist users cannot manage the list
+        if (!getOwnerIds().includes(interaction.user.id) &&
+            !interaction.memberPermissions?.has('Administrator') &&
+            !interaction.memberPermissions?.has('ManageGuild')) {
+            await interaction.reply({
+                content: '❌ Only owners and admins can manage the whitelist.',
+                ephemeral: true
+            });
+            return;
+        }
+    }
 
+    const sub = interaction.options.getSubcommand();
+
+    if (sub === 'add') {
+        const user = interaction.options.getUser('user', true);
+        const added = addToWhitelist(user.id);
+
+        await interaction.reply({
+            content: added
+                ? `✅ Added **${user.tag}** (\`${user.id}\`) to the whitelist.`
+                : `ℹ️ **${user.tag}** is already on the whitelist.`,
+            ephemeral: true
+        });
+        return;
+    }
+
+    if (sub === 'remove') {
+        const user = interaction.options.getUser('user', true);
+        const removed = removeFromWhitelist(user.id);
+
+        await interaction.reply({
+            content: removed
+                ? `✅ Removed **${user.tag}** from the whitelist.`
+                : `ℹ️ **${user.tag}** was not on the whitelist.`,
+            ephemeral: true
+        });
+        return;
+    }
+
+    if (sub === 'list') {
+        const list = loadWhitelist();
+
+        if (list.length === 0) {
+            await interaction.reply({
+                content: '📋 The whitelist is currently empty.',
+                ephemeral: true
+            });
+            return;
+        }
+
+        // Try to resolve tags (best effort)
+        const lines = await Promise.all(
+            list.map(async (id) => {
+                try {
+                    const u = await interaction.client.users.fetch(id);
+                    return `• **${u.tag}** (\`${id}\`)`;
+                } catch {
+                    return `• Unknown user (\`${id}\`)`;
+                }
+            })
+        );
+
+        await interaction.reply({
+            content: `📋 **Whitelist** (${list.length}):\n${lines.join('\n')}`,
+            ephemeral: true
+        });
+        return;
+    }
+}
 
             // /setlink
             if (interaction.commandName === 'setlink') {
@@ -556,7 +633,36 @@ client.on('interactionCreate', async (interaction) => {
             }
         }
 
+// =====================================================
+// PERMISSION CHECK (owner / admin / whitelist)
+// =====================================================
+// =====================================================
+// PERMISSION CHECK (owner / admin / whitelist)
+// =====================================================
 
+function getOwnerIds() {
+    const raw = process.env.OWNER_IDS || '';
+    return raw
+        .split(/[,\s]+/)
+        .map((id) => id.trim())
+        .filter(Boolean);
+}
+
+function canUseRestrictedCommand(interaction) {
+    const userId = interaction.user.id;
+
+    // Owners from env
+    if (getOwnerIds().includes(userId)) return true;
+
+    // Stored whitelist
+    if (isWhitelisted(userId)) return true;
+
+    // Admins
+    if (interaction.memberPermissions?.has('Administrator')) return true;
+    if (interaction.memberPermissions?.has('ManageGuild')) return true;
+
+    return false;
+}
         // =============================================
         // BUTTONS
         // =============================================
