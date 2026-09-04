@@ -1,4 +1,3 @@
-````js
 require('dotenv').config();
 
 const {
@@ -2005,4 +2004,4 @@ client.login(
 
     process.exit(1);
 });
-````
+
