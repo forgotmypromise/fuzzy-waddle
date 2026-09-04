@@ -1,4 +1,3 @@
-````js
 require('dotenv').config();
 
 const {
@@ -149,10 +148,9 @@ const ADMIN_SECRET =
 
 
 /**
- * Make an authenticated request to the Cloudflare Worker.
+ * Authenticated Cloudflare request.
  *
- * The ADMIN_SECRET is NEVER sent to Discord users.
- * It only exists inside the bot's environment.
+ * ADMIN_SECRET stays inside the bot environment.
  */
 async function cloudflareRequest(endpoint, body = {}) {
     const response = await fetch(
@@ -180,46 +178,15 @@ async function cloudflareRequest(endpoint, body = {}) {
     }
 
     if (!response.ok || data.success === false) {
-        throw new Error(
+        const error = new Error(
             data.message ||
             `Cloudflare API error (${response.status})`
         );
-    }
 
-    return data;
-}
+        error.status = response.status;
+        error.data = data;
 
-
-/**
- * Verify a key using the PUBLIC /verify endpoint.
- *
- * This does NOT send ADMIN_SECRET.
- */
-async function verifyKey(key) {
-    const response = await fetch(
-        `${POLO_API_URL}/verify`,
-        {
-            method: 'POST',
-
-            headers: {
-                'Content-Type': 'application/json'
-            },
-
-            body: JSON.stringify({
-                key
-            })
-        }
-    );
-
-    let data;
-
-    try {
-        data = await response.json();
-    } catch {
-        return {
-            success: false,
-            message: 'Invalid API response'
-        };
+        throw error;
     }
 
     return data;
@@ -323,11 +290,8 @@ function buildPanelEmbed() {
         .setTitle('🎮 Polo Panel')
         .setDescription(
             '**Key Manager System**\n\n' +
-
             '🚀 Access and manage your account through the buttons below.\n\n' +
-
             '**Available Features:**\n' +
-
             '📄 **Get Script** — Get Script\n' +
             '⚡ **Get XP Script** — Get XP Script\n' +
             '🔑 **Redeem Key** — Upgrade your access level\n' +
@@ -435,9 +399,7 @@ function buildPanelRows(guildId) {
     const row1 =
         new ActionRowBuilder().addComponents(
             getButton,
-
             xpButton,
-
             new ButtonBuilder()
                 .setCustomId('polo_redeem')
                 .setLabel('Redeem Key')
@@ -464,7 +426,6 @@ function buildPanelRows(guildId) {
 
     const row3 =
         new ActionRowBuilder().addComponents(
-
             new ButtonBuilder()
                 .setCustomId('polo_obfuscate')
                 .setLabel('Obfuscate')
@@ -607,7 +568,6 @@ client.on(
                         await interaction.reply({
                             content:
                                 '❌ You do not have permission to use this command.',
-
                             ephemeral: true
                         });
 
@@ -645,7 +605,6 @@ client.on(
                         await interaction.reply({
                             content:
                                 '❌ Only owners and admins can manage the whitelist.',
-
                             ephemeral: true
                         });
 
@@ -672,7 +631,6 @@ client.on(
                             content: added
                                 ? `✅ Added **${user.tag}** (\`${user.id}\`) to the whitelist.`
                                 : `ℹ️ **${user.tag}** is already on the whitelist.`,
-
                             ephemeral: true
                         });
 
@@ -696,7 +654,6 @@ client.on(
                             content: removed
                                 ? `✅ Removed **${user.tag}** from the whitelist.`
                                 : `ℹ️ **${user.tag}** was not on the whitelist.`,
-
                             ephemeral: true
                         });
 
@@ -713,7 +670,6 @@ client.on(
                             await interaction.reply({
                                 content:
                                     '📋 The whitelist is currently empty.',
-
                                 ephemeral: true
                             });
 
@@ -743,7 +699,6 @@ client.on(
                         await interaction.reply({
                             content:
                                 `📋 **Whitelist** (${list.length}):\n${lines.join('\n')}`,
-
                             ephemeral: true
                         });
 
@@ -790,7 +745,6 @@ client.on(
                             `✅ **${labels[button] || button}** button updated.\n\n` +
                             `Value: \`${url}\`\n\n` +
                             `Run \`/panel\` again to post an updated panel.`,
-
                         ephemeral: true
                     });
 
@@ -820,7 +774,6 @@ client.on(
                     await interaction.reply({
                         content:
                             `✅ **${role.name}** is now the premium role.`,
-
                         ephemeral: true
                     });
 
@@ -850,7 +803,6 @@ client.on(
                     await interaction.reply({
                         content:
                             `✅ Reset limit set to **${amount}** per member.`,
-
                         ephemeral: true
                     });
 
@@ -873,7 +825,6 @@ client.on(
                         await interaction.reply({
                             content:
                                 '❌ Reset system error.',
-
                             ephemeral: true
                         });
 
@@ -904,7 +855,6 @@ client.on(
                         content:
                             `✅ Cleared HWID resets for **${user.tag}**.\n` +
                             `They now have **${maxResets}/${maxResets}** available.`,
-
                         ephemeral: true
                     });
 
@@ -929,7 +879,6 @@ client.on(
                         await interaction.reply({
                             content:
                                 '❌ You do not have permission to generate keys.',
-
                             ephemeral: true
                         });
 
@@ -1088,7 +1037,6 @@ client.on(
                         await interaction.reply({
                             content:
                                 '❌ Reset system is not configured correctly.',
-
                             ephemeral: true
                         });
 
@@ -1119,7 +1067,6 @@ client.on(
                         await interaction.reply({
                             content:
                                 `🔄 Reset complete.\nYou have **${remaining}/${maxResets}** resets left.`,
-
                             ephemeral: true
                         });
 
@@ -1128,7 +1075,6 @@ client.on(
                         await interaction.reply({
                             content:
                                 `❌ You've used all **${maxResets}** resets.`,
-
                             ephemeral: true
                         });
                     }
@@ -1177,7 +1123,6 @@ client.on(
                             content:
                                 `📊 **Status:** Premium role has not been configured.\n` +
                                 `🔄 Resets remaining: **${resetsLeft}/${maxResets}**`,
-
                             ephemeral: true
                         });
 
@@ -1197,7 +1142,6 @@ client.on(
                             isPremium
                                 ? `📊 **Status:** 💎 Premium\n🔄 Resets remaining: **${resetsLeft}/${maxResets}**`
                                 : `📊 **Status:** Not Premium\n🔄 Resets remaining: **${resetsLeft}/${maxResets}**`,
-
                         ephemeral: true
                     });
 
@@ -1261,7 +1205,6 @@ client.on(
                     await interaction.reply({
                         content:
                             '❌ Please enter a key.',
-
                         ephemeral: true
                     });
 
@@ -1274,23 +1217,78 @@ client.on(
 
                 try {
 
+                    /*
+                     * IMPORTANT:
+                     *
+                     * We use /redeem here, NOT /verify.
+                     *
+                     * The Discord user's ID is sent to Cloudflare,
+                     * allowing the Worker to permanently associate
+                     * the redeemed key with this Discord account.
+                     */
                     const result =
-                        await verifyKey(
-                            inputKey
+                        await cloudflareRequest(
+                            '/redeem',
+                            {
+                                key: inputKey,
+                                discordId: interaction.user.id
+                            }
                         );
 
-                    if (!result.success) {
 
-                        await interaction.editReply({
-                            content:
-                                `❌ ${result.message || 'That key is invalid or disabled.'}`
-                        });
+                    // -----------------------------------------
+                    // Key already belongs to this user
+                    // -----------------------------------------
+
+                    if (
+                        result.alreadyRedeemed
+                    ) {
+
+                        const roleId =
+                            process.env.PREMIUM_ROLE_ID ||
+                            getGuildConfig(
+                                interaction.guildId
+                            )?.premiumRoleId ||
+                            '1409762874754203742';
+
+                        try {
+
+                            await interaction.member.roles.add(
+                                roleId
+                            );
+
+                            await interaction.editReply({
+                                content:
+                                    `ℹ️ This key is already linked to your Discord account.\n` +
+                                    `You have been given the <@&${roleId}> role.`
+                            });
+
+                        } catch (error) {
+
+                            console.error(
+                                'Failed to give existing redemption role:',
+                                error
+                            );
+
+                            await interaction.editReply({
+                                content:
+                                    'ℹ️ This key is already linked to your Discord account, but I could not give you the role. Contact an administrator.'
+                            });
+                        }
 
                         return;
                     }
 
+
+                    // -----------------------------------------
+                    // Successful first redemption
+                    // -----------------------------------------
+
                     const roleId =
                         process.env.PREMIUM_ROLE_ID ||
+                        getGuildConfig(
+                            interaction.guildId
+                        )?.premiumRoleId ||
                         '1409762874754203742';
 
                     try {
@@ -1301,8 +1299,9 @@ client.on(
 
                         await interaction.editReply({
                             content:
-                                `✅ Key redeemed successfully!\n` +
-                                `You have been given the <@&${roleId}> role.`
+                                `✅ **Key redeemed successfully!**\n\n` +
+                                `🔑 Your key is now permanently linked to your Discord account.\n` +
+                                `💎 You have been given the <@&${roleId}> role.`
                         });
 
                     } catch (error) {
@@ -1314,16 +1313,46 @@ client.on(
 
                         await interaction.editReply({
                             content:
-                                '✅ Key verified successfully, but I could not give you the role. Contact an administrator.'
+                                `✅ **Key redeemed successfully!**\n\n` +
+                                `🔑 Your key is now linked to your Discord account.\n` +
+                                `⚠️ I could not give you the premium role. Contact an administrator.`
                         });
                     }
 
                 } catch (error) {
 
                     console.error(
-                        'Key verification error:',
+                        'Key redemption error:',
                         error
                     );
+
+                    // -----------------------------------------
+                    // Specific Cloudflare errors
+                    // -----------------------------------------
+
+                    if (
+                        error.status === 409
+                    ) {
+
+                        await interaction.editReply({
+                            content:
+                                '❌ That key has already been redeemed by another Discord account.'
+                        });
+
+                        return;
+                    }
+
+                    if (
+                        error.status === 403
+                    ) {
+
+                        await interaction.editReply({
+                            content:
+                                `❌ ${error.message || 'That key is invalid or disabled.'}`
+                        });
+
+                        return;
+                    }
 
                     await interaction.editReply({
                         content:
@@ -1359,7 +1388,6 @@ client.on(
                     await interaction.reply({
                         content:
                             '❌ An internal error occurred. Check the bot console.',
-
                         ephemeral: true
                     });
                 }
@@ -1399,7 +1427,6 @@ async function handleObfuscate(
         await interaction.reply({
             content:
                 '❌ Please upload a Lua file.',
-
             ephemeral: true
         });
 
@@ -1416,7 +1443,6 @@ async function handleObfuscate(
         await interaction.reply({
             content:
                 '❌ Please upload a `.lua` file.',
-
             ephemeral: true
         });
 
@@ -1431,7 +1457,6 @@ async function handleObfuscate(
         await interaction.reply({
             content:
                 '❌ File is too large. Maximum size is **500 KB**.',
-
             ephemeral: true
         });
 
@@ -1619,6 +1644,3 @@ client.login(
 
     process.exit(1);
 });
-
-
-
