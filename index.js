@@ -32,23 +32,17 @@ const {
     isWhitelisted
 } = require('./lib/storage');
 
-// Load modules without assuming every function exists
 const keysModule = require('./lib/keys');
 const resetsModule = require('./lib/resets');
-
 const { generateKey } = require('./lib/keygen');
 const { commandDefs } = require('./lib/commands');
 const DATA_DIR = require('./lib/data-dir');
 
 const execFileAsync = promisify(execFile);
 
-
 // =====================================================
 // MODULE FUNCTION COMPATIBILITY
 // =====================================================
-
-// Try common names so the bot doesn't crash from a missing export.
-// Ideally your lib/keys.js should export addKeys directly.
 const redeemKey =
     keysModule.redeemKey ||
     keysModule.redeem ||
@@ -60,7 +54,6 @@ const addKeys =
     keysModule.saveKeys ||
     keysModule.addMultipleKeys;
 
-// Reset functions
 const useReset =
     resetsModule.useReset ||
     resetsModule.consumeReset;
@@ -79,11 +72,9 @@ const DEFAULT_MAX_RESETS =
     resetsModule.DEFAULT_RESETS ||
     3;
 
-
 // =====================================================
 // ENVIRONMENT VALIDATION
 // =====================================================
-
 function validateEnv() {
     const missing = ['DISCORD_TOKEN', 'CLIENT_ID'].filter(
         (key) => !process.env[key]
@@ -107,11 +98,9 @@ console.log(
     }`
 );
 
-
 // =====================================================
 // ERROR HANDLING
 // =====================================================
-
 process.on('unhandledRejection', (err) => {
     console.error('Unhandled promise rejection:', err);
 });
@@ -120,23 +109,56 @@ process.on('uncaughtException', (err) => {
     console.error('Uncaught exception:', err);
 });
 
+// =====================================================
+// PERMISSION CHECK (owner / admin / whitelist)
+// =====================================================
+function getOwnerIds() {
+    const raw = process.env.OWNER_IDS || '';
+    return raw
+        .split(/[,\s]+/)
+        .map((id) => id.trim())
+        .filter(Boolean);
+}
+
+function canUseRestrictedCommand(interaction) {
+    const userId = interaction.user.id;
+
+    // Owners from .env
+    if (getOwnerIds().includes(userId)) return true;
+
+    // Stored whitelist
+    if (isWhitelisted(userId)) return true;
+
+    // Server admins
+    if (interaction.memberPermissions?.has('Administrator')) return true;
+    if (interaction.memberPermissions?.has('ManageGuild')) return true;
+
+    return false;
+}
+
+function canManageWhitelist(interaction) {
+    const userId = interaction.user.id;
+
+    // Only owners + real admins can manage the list
+    if (getOwnerIds().includes(userId)) return true;
+    if (interaction.memberPermissions?.has('Administrator')) return true;
+    if (interaction.memberPermissions?.has('ManageGuild')) return true;
+
+    return false;
+}
 
 // =====================================================
 // DISCORD CLIENT
 // =====================================================
-
 const client = new Client({
     intents: [GatewayIntentBits.Guilds]
 });
 
-
 // =====================================================
 // COMMAND REGISTRATION
 // =====================================================
-
 async function registerCommands() {
-    const rest = new REST({ version: '10' })
-        .setToken(process.env.DISCORD_TOKEN);
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
     try {
         if (process.env.GUILD_ID) {
@@ -147,14 +169,12 @@ async function registerCommands() {
                 ),
                 { body: commandDefs }
             );
-
             console.log('Guild slash commands registered.');
         } else {
             await rest.put(
                 Routes.applicationCommands(process.env.CLIENT_ID),
                 { body: commandDefs }
             );
-
             console.log('Global slash commands registered.');
         }
     } catch (err) {
@@ -162,34 +182,20 @@ async function registerCommands() {
     }
 }
 
-
 // =====================================================
 // URL NORMALIZER
 // =====================================================
-
 function normalizeURL(value) {
-    if (!value || typeof value !== 'string') {
-        return null;
-    }
-
+    if (!value || typeof value !== 'string') return null;
     value = value.trim();
-
-    if (!value) {
-        return null;
-    }
-
-    if (/^https?:\/\//i.test(value)) {
-        return value;
-    }
-
+    if (!value) return null;
+    if (/^https?:\/\//i.test(value)) return value;
     return `https://${value}`;
 }
-
 
 // =====================================================
 // PANEL EMBED
 // =====================================================
-
 function buildPanelEmbed() {
     return new EmbedBuilder()
         .setColor(0xab0000)
@@ -205,24 +211,14 @@ function buildPanelEmbed() {
             '📊 **View Status** — Check your account info\n' +
             '❓ **Help** — Get support and guidance'
         )
-        .setFooter({
-            text: 'Polo Panel • Key Manager System'
-        })
+        .setFooter({ text: 'Polo Panel • Key Manager System' })
         .setTimestamp();
 }
-
 
 // =====================================================
 // SAFE LINK BUTTON
 // =====================================================
-
-function createLinkOrButton(
-    label,
-    emoji,
-    url,
-    customId,
-    fallbackStyle = ButtonStyle.Secondary
-) {
+function createLinkOrButton(label, emoji, url, customId, fallbackStyle = ButtonStyle.Secondary) {
     const normalizedURL = normalizeURL(url);
 
     if (normalizedURL) {
@@ -244,51 +240,21 @@ function createLinkOrButton(
         .setStyle(fallbackStyle);
 }
 
-
 // =====================================================
 // PANEL BUTTONS
 // =====================================================
-
 function buildPanelRows(guildId) {
     let config = {};
-
     try {
         config = getGuildConfig(guildId) || {};
     } catch (error) {
         console.error('Failed to load guild config:', error);
     }
 
-    const getButton = createLinkOrButton(
-        'Get Script',
-        '📄',
-        config.getLink,
-        'polo_get',
-        ButtonStyle.Danger
-    );
-
-    const xpButton = createLinkOrButton(
-        'Get XP Script',
-        '⚡',
-        config.xpLink,
-        'polo_xp',
-        ButtonStyle.Danger
-    );
-
-    const premiumButton = createLinkOrButton(
-        'Get Premium Key',
-        '💎',
-        config.premiumLink,
-        'polo_premium',
-        ButtonStyle.Success
-    );
-
-    const helpButton = createLinkOrButton(
-        'Help',
-        '❓',
-        config.helpLink,
-        'polo_help',
-        ButtonStyle.Danger
-    );
+    const getButton = createLinkOrButton('Get Script', '📄', config.getLink, 'polo_get', ButtonStyle.Danger);
+    const xpButton = createLinkOrButton('Get XP Script', '⚡', config.xpLink, 'polo_xp', ButtonStyle.Danger);
+    const premiumButton = createLinkOrButton('Get Premium Key', '💎', config.premiumLink, 'polo_premium', ButtonStyle.Success);
+    const helpButton = createLinkOrButton('Help', '❓', config.helpLink, 'polo_help', ButtonStyle.Danger);
 
     const row1 = new ActionRowBuilder().addComponents(
         getButton,
@@ -326,70 +292,46 @@ function buildPanelRows(guildId) {
     return [row1, row2, row3];
 }
 
-
 // =====================================================
 // READY + ROTATING STATUS
 // =====================================================
-
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
-
     await registerCommands();
 
     const statuses = [
-        {
-            name: '/polo',
-            type: ActivityType.Watching
-        },
-        {
-            name: 'RH2',
-            type: ActivityType.Competing
-        },
-        {
-            name: 'polohub',
-            type: ActivityType.Playing
-        }
+        { name: '/polo', type: ActivityType.Watching },
+        { name: 'RH2', type: ActivityType.Competing },
+        { name: 'polohub', type: ActivityType.Playing }
     ];
 
     let currentStatus = 0;
 
     function updateStatus() {
         const status = statuses[currentStatus];
-
         client.user.setPresence({
-            activities: [{
-                name: status.name,
-                type: status.type
-            }],
+            activities: [{ name: status.name, type: status.type }],
             status: 'online'
         });
-
-        currentStatus =
-            (currentStatus + 1) % statuses.length;
+        currentStatus = (currentStatus + 1) % statuses.length;
     }
 
     updateStatus();
-
     setInterval(updateStatus, 10000);
 });
-
 
 client.on('error', (err) => {
     console.error('Discord client error:', err);
 });
 
-
 // =====================================================
 // INTERACTION HANDLER
 // =====================================================
-
 client.on('interactionCreate', async (interaction) => {
     try {
-
         // =============================================
         // SLASH COMMANDS
         // =============================================
-
         if (interaction.isChatInputCommand()) {
 
             // /panel
@@ -400,88 +342,98 @@ client.on('interactionCreate', async (interaction) => {
                 });
                 return;
             }
-// /whitelist
-if (interaction.commandName === 'whitelist') {
-    // Only owners + admins can manage the whitelist
-    if (!canUseRestrictedCommand(interaction) || isWhitelisted(interaction.user.id) && !getOwnerIds().includes(interaction.user.id) && !interaction.memberPermissions?.has('Administrator') && !interaction.memberPermissions?.has('ManageGuild')) {
-        // Extra safety: normal whitelist users cannot manage the list
-        if (!getOwnerIds().includes(interaction.user.id) &&
-            !interaction.memberPermissions?.has('Administrator') &&
-            !interaction.memberPermissions?.has('ManageGuild')) {
-            await interaction.reply({
-                content: '❌ Only owners and admins can manage the whitelist.',
-                ephemeral: true
-            });
-            return;
-        }
-    }
 
-    const sub = interaction.options.getSubcommand();
-
-    if (sub === 'add') {
-        const user = interaction.options.getUser('user', true);
-        const added = addToWhitelist(user.id);
-
-        await interaction.reply({
-            content: added
-                ? `✅ Added **${user.tag}** (\`${user.id}\`) to the whitelist.`
-                : `ℹ️ **${user.tag}** is already on the whitelist.`,
-            ephemeral: true
-        });
-        return;
-    }
-
-    if (sub === 'remove') {
-        const user = interaction.options.getUser('user', true);
-        const removed = removeFromWhitelist(user.id);
-
-        await interaction.reply({
-            content: removed
-                ? `✅ Removed **${user.tag}** from the whitelist.`
-                : `ℹ️ **${user.tag}** was not on the whitelist.`,
-            ephemeral: true
-        });
-        return;
-    }
-
-    if (sub === 'list') {
-        const list = loadWhitelist();
-
-        if (list.length === 0) {
-            await interaction.reply({
-                content: '📋 The whitelist is currently empty.',
-                ephemeral: true
-            });
-            return;
-        }
-
-        // Try to resolve tags (best effort)
-        const lines = await Promise.all(
-            list.map(async (id) => {
-                try {
-                    const u = await interaction.client.users.fetch(id);
-                    return `• **${u.tag}** (\`${id}\`)`;
-                } catch {
-                    return `• Unknown user (\`${id}\`)`;
+            // /free
+            if (interaction.commandName === 'free') {
+                if (!canUseRestrictedCommand(interaction)) {
+                    await interaction.reply({
+                        content: '❌ You do not have permission to use this command.',
+                        ephemeral: true
+                    });
+                    return;
                 }
-            })
-        );
 
-        await interaction.reply({
-            content: `📋 **Whitelist** (${list.length}):\n${lines.join('\n')}`,
-            ephemeral: true
-        });
-        return;
-    }
-}
+                const text = interaction.options.getString('text', true);
+
+                await interaction.reply({
+                    content: text
+                    // remove "ephemeral: true" if you want it public
+                });
+                return;
+            }
+
+            // /whitelist
+            if (interaction.commandName === 'whitelist') {
+                if (!canManageWhitelist(interaction)) {
+                    await interaction.reply({
+                        content: '❌ Only owners and admins can manage the whitelist.',
+                        ephemeral: true
+                    });
+                    return;
+                }
+
+                const sub = interaction.options.getSubcommand();
+
+                if (sub === 'add') {
+                    const user = interaction.options.getUser('user', true);
+                    const added = addToWhitelist(user.id);
+
+                    await interaction.reply({
+                        content: added
+                            ? `✅ Added **${user.tag}** (\`${user.id}\`) to the whitelist.`
+                            : `ℹ️ **${user.tag}** is already on the whitelist.`,
+                        ephemeral: true
+                    });
+                    return;
+                }
+
+                if (sub === 'remove') {
+                    const user = interaction.options.getUser('user', true);
+                    const removed = removeFromWhitelist(user.id);
+
+                    await interaction.reply({
+                        content: removed
+                            ? `✅ Removed **${user.tag}** from the whitelist.`
+                            : `ℹ️ **${user.tag}** was not on the whitelist.`,
+                        ephemeral: true
+                    });
+                    return;
+                }
+
+                if (sub === 'list') {
+                    const list = loadWhitelist();
+
+                    if (list.length === 0) {
+                        await interaction.reply({
+                            content: '📋 The whitelist is currently empty.',
+                            ephemeral: true
+                        });
+                        return;
+                    }
+
+                    const lines = await Promise.all(
+                        list.map(async (id) => {
+                            try {
+                                const u = await interaction.client.users.fetch(id);
+                                return `• **${u.tag}** (\`${id}\`)`;
+                            } catch {
+                                return `• Unknown user (\`${id}\`)`;
+                            }
+                        })
+                    );
+
+                    await interaction.reply({
+                        content: `📋 **Whitelist** (${list.length}):\n${lines.join('\n')}`,
+                        ephemeral: true
+                    });
+                    return;
+                }
+            }
 
             // /setlink
             if (interaction.commandName === 'setlink') {
-                const button =
-                    interaction.options.getString('button', true);
-
-                const url =
-                    interaction.options.getString('url', true);
+                const button = interaction.options.getString('button', true);
+                const url = interaction.options.getString('url', true);
 
                 if (!url || !url.trim()) {
                     await interaction.reply({
@@ -491,11 +443,7 @@ if (interaction.commandName === 'whitelist') {
                     return;
                 }
 
-                setGuildLink(
-                    interaction.guildId,
-                    button,
-                    url.trim()
-                );
+                setGuildLink(interaction.guildId, button, url.trim());
 
                 const labels = {
                     getLink: 'Get Script',
@@ -511,65 +459,46 @@ if (interaction.commandName === 'whitelist') {
                         `Run \`/panel\` again to post an updated panel.`,
                     ephemeral: true
                 });
-
                 return;
             }
-
 
             // /setpremiumrole
             if (interaction.commandName === 'setpremiumrole') {
-                const role =
-                    interaction.options.getRole('role', true);
-
+                const role = interaction.options.getRole('role', true);
                 setPremiumRole(interaction.guildId, role.id);
 
                 await interaction.reply({
-                    content:
-                        `✅ **${role.name}** is now the premium role.`,
+                    content: `✅ **${role.name}** is now the premium role.`,
                     ephemeral: true
                 });
-
                 return;
             }
-
 
             // /setresetlimit
             if (interaction.commandName === 'setresetlimit') {
-                const amount =
-                    interaction.options.getInteger('amount', true);
-
+                const amount = interaction.options.getInteger('amount', true);
                 setResetLimit(interaction.guildId, amount);
 
                 await interaction.reply({
-                    content:
-                        `✅ Reset limit set to **${amount}** per member.`,
+                    content: `✅ Reset limit set to **${amount}** per member.`,
                     ephemeral: true
                 });
-
                 return;
             }
 
-
             // /resethwidresets
             if (interaction.commandName === 'resethwidresets') {
-
                 if (typeof resetUser !== 'function') {
                     await interaction.reply({
-                        content:
-                            '❌ Reset system error: `resetUser` is not exported from lib/resets.js.',
+                        content: '❌ Reset system error: `resetUser` is not exported from lib/resets.js.',
                         ephemeral: true
                     });
                     return;
                 }
 
-                const user =
-                    interaction.options.getUser('user', true);
-
-                const config =
-                    getGuildConfig(interaction.guildId) || {};
-
-                const maxResets =
-                    config.resetLimit || DEFAULT_MAX_RESETS;
+                const user = interaction.options.getUser('user', true);
+                const config = getGuildConfig(interaction.guildId) || {};
+                const maxResets = config.resetLimit || DEFAULT_MAX_RESETS;
 
                 resetUser(interaction.guildId, user.id);
 
@@ -579,52 +508,32 @@ if (interaction.commandName === 'whitelist') {
                         `They now have **${maxResets}/${maxResets}** available.`,
                     ephemeral: true
                 });
-
                 return;
             }
-
 
             // /genkeys
             if (interaction.commandName === 'genkeys') {
-
                 if (typeof addKeys !== 'function') {
-                    console.error(
-                        'keys.js exports:',
-                        Object.keys(keysModule)
-                    );
-
+                    console.error('keys.js exports:', Object.keys(keysModule));
                     await interaction.reply({
-                        content:
-                            '❌ Key storage error. `addKeys` is not exported from `lib/keys.js`. Check the bot console for available exports.',
+                        content: '❌ Key storage error. `addKeys` is not exported from `lib/keys.js`.',
                         ephemeral: true
                     });
-
                     return;
                 }
 
-                const amount =
-                    interaction.options.getInteger('amount', true);
+                const amount = interaction.options.getInteger('amount', true);
+                const format = interaction.options.getString('format') || 'polo';
 
-                const format =
-                    interaction.options.getString('format') || 'polo';
-
-                const newKeys = Array.from(
-                    { length: amount },
-                    () => generateKey(format)
-                );
-
+                const newKeys = Array.from({ length: amount }, () => generateKey(format));
                 addKeys(newKeys);
 
                 await interaction.reply({
-                    content:
-                        `✅ Generated **${amount}** key(s):\n` +
-                        `\`\`\`\n${newKeys.join('\n')}\n\`\`\``,
+                    content: `✅ Generated **${amount}** key(s):\n\`\`\`\n${newKeys.join('\n')}\n\`\`\``,
                     ephemeral: true
                 });
-
                 return;
             }
-
 
             // /obfuscate
             if (interaction.commandName === 'obfuscate') {
@@ -633,45 +542,11 @@ if (interaction.commandName === 'whitelist') {
             }
         }
 
-// =====================================================
-// PERMISSION CHECK (owner / admin / whitelist)
-// =====================================================
-// =====================================================
-// PERMISSION CHECK (owner / admin / whitelist)
-// =====================================================
-
-function getOwnerIds() {
-    const raw = process.env.OWNER_IDS || '';
-    return raw
-        .split(/[,\s]+/)
-        .map((id) => id.trim())
-        .filter(Boolean);
-}
-
-function canUseRestrictedCommand(interaction) {
-    const userId = interaction.user.id;
-
-    // Owners from env
-    if (getOwnerIds().includes(userId)) return true;
-
-    // Stored whitelist
-    if (isWhitelisted(userId)) return true;
-
-    // Admins
-    if (interaction.memberPermissions?.has('Administrator')) return true;
-    if (interaction.memberPermissions?.has('ManageGuild')) return true;
-
-    return false;
-}
         // =============================================
         // BUTTONS
         // =============================================
-
         if (interaction.isButton()) {
-
-            // REDEEM
             if (interaction.customId === 'polo_redeem') {
-
                 const modal = new ModalBuilder()
                     .setCustomId('polo_redeem_modal')
                     .setTitle('Redeem a Key');
@@ -682,35 +557,22 @@ function canUseRestrictedCommand(interaction) {
                     .setStyle(TextInputStyle.Short)
                     .setRequired(true);
 
-                modal.addComponents(
-                    new ActionRowBuilder().addComponents(keyInput)
-                );
-
+                modal.addComponents(new ActionRowBuilder().addComponents(keyInput));
                 await interaction.showModal(modal);
                 return;
             }
 
-
-            // RESET
             if (interaction.customId === 'polo_reset') {
-
-                if (
-                    typeof useReset !== 'function' ||
-                    typeof getRemaining !== 'function'
-                ) {
+                if (typeof useReset !== 'function' || typeof getRemaining !== 'function') {
                     await interaction.reply({
-                        content:
-                            '❌ Reset system is not configured correctly in `lib/resets.js`.',
+                        content: '❌ Reset system is not configured correctly in `lib/resets.js`.',
                         ephemeral: true
                     });
                     return;
                 }
 
-                const config =
-                    getGuildConfig(interaction.guildId) || {};
-
-                const maxResets =
-                    config.resetLimit || DEFAULT_MAX_RESETS;
+                const config = getGuildConfig(interaction.guildId) || {};
+                const maxResets = config.resetLimit || DEFAULT_MAX_RESETS;
 
                 const { success, remaining } = useReset(
                     interaction.guildId,
@@ -720,58 +582,37 @@ function canUseRestrictedCommand(interaction) {
 
                 if (success) {
                     await interaction.reply({
-                        content:
-                            `🔄 Reset complete.\n` +
-                            `You have **${remaining}/${maxResets}** resets left.`,
+                        content: `🔄 Reset complete.\nYou have **${remaining}/${maxResets}** resets left.`,
                         ephemeral: true
                     });
                 } else {
                     await interaction.reply({
-                        content:
-                            `❌ You've used all **${maxResets}** resets.`,
+                        content: `❌ You've used all **${maxResets}** resets.`,
                         ephemeral: true
                     });
                 }
-
                 return;
             }
 
-
-            // STATUS
             if (interaction.customId === 'polo_status') {
-
-                const config =
-                    getGuildConfig(interaction.guildId) || {};
-
-                const maxResets =
-                    config.resetLimit || DEFAULT_MAX_RESETS;
+                const config = getGuildConfig(interaction.guildId) || {};
+                const maxResets = config.resetLimit || DEFAULT_MAX_RESETS;
 
                 let resetsLeft = maxResets;
-
                 if (typeof getRemaining === 'function') {
-                    resetsLeft = getRemaining(
-                        interaction.guildId,
-                        interaction.user.id,
-                        maxResets
-                    );
+                    resetsLeft = getRemaining(interaction.guildId, interaction.user.id, maxResets);
                 }
 
                 if (!config.premiumRoleId) {
                     await interaction.reply({
-                        content:
-                            `📊 **Status:** Premium role has not been configured.\n` +
-                            `🔄 Resets remaining: **${resetsLeft}/${maxResets}**`,
+                        content: `📊 **Status:** Premium role has not been configured.\n🔄 Resets remaining: **${resetsLeft}/${maxResets}**`,
                         ephemeral: true
                     });
                     return;
                 }
 
                 const member = interaction.member;
-
-                const isPremium =
-                    member?.roles?.cache?.has(
-                        config.premiumRoleId
-                    ) ?? false;
+                const isPremium = member?.roles?.cache?.has(config.premiumRoleId) ?? false;
 
                 await interaction.reply({
                     content: isPremium
@@ -779,58 +620,37 @@ function canUseRestrictedCommand(interaction) {
                         : `📊 **Status:** Not Premium\n🔄 Resets remaining: **${resetsLeft}/${maxResets}**`,
                     ephemeral: true
                 });
-
                 return;
             }
 
-
             const replies = {
-                polo_get:
-                    '📄 No link has been set for **Get Script** yet.',
-                polo_xp:
-                    '⚡ No link has been set for **Get XP Script** yet.',
-                polo_premium:
-                    '💎 No link has been set for **Get Premium Key** yet.',
-                polo_obfuscate:
-                    '🛠️ Upload a Lua file using the `/obfuscate` command.',
-                polo_help:
-                    '❓ No help link has been configured yet.'
+                polo_get: '📄 No link has been set for **Get Script** yet.',
+                polo_xp: '⚡ No link has been set for **Get XP Script** yet.',
+                polo_premium: '💎 No link has been set for **Get Premium Key** yet.',
+                polo_obfuscate: '🛠️ Upload a Lua file using the `/obfuscate` command.',
+                polo_help: '❓ No help link has been configured yet.'
             };
 
             const content = replies[interaction.customId];
-
             if (content) {
-                await interaction.reply({
-                    content,
-                    ephemeral: true
-                });
+                await interaction.reply({ content, ephemeral: true });
             }
-
             return;
         }
-
 
         // =============================================
         // MODAL
         // =============================================
-
-        if (
-            interaction.isModalSubmit() &&
-            interaction.customId === 'polo_redeem_modal'
-        ) {
-
+        if (interaction.isModalSubmit() && interaction.customId === 'polo_redeem_modal') {
             if (typeof redeemKey !== 'function') {
                 await interaction.reply({
-                    content:
-                        '❌ Key system is not configured correctly in `lib/keys.js`.',
+                    content: '❌ Key system is not configured correctly in `lib/keys.js`.',
                     ephemeral: true
                 });
                 return;
             }
 
-            const inputKey =
-                interaction.fields.getTextInputValue('key_input');
-
+            const inputKey = interaction.fields.getTextInputValue('key_input');
             const success = redeemKey(inputKey);
 
             if (success) {
@@ -838,215 +658,136 @@ function canUseRestrictedCommand(interaction) {
 
                 try {
                     await interaction.member.roles.add(roleId);
-
                     await interaction.reply({
-                        content:
-                            `✅ Key redeemed successfully!\n` +
-                            `You have been given the <@&${roleId}> role.`,
+                        content: `✅ Key redeemed successfully!\nYou have been given the <@&${roleId}> role.`,
                         ephemeral: true
                     });
-
                 } catch (error) {
-                    console.error(
-                        'Failed to give redemption role:',
-                        error
-                    );
-
+                    console.error('Failed to give redemption role:', error);
                     await interaction.reply({
-                        content:
-                            '✅ Key redeemed successfully, but I could not give you the role. Contact an administrator.',
+                        content: '✅ Key redeemed successfully, but I could not give you the role. Contact an administrator.',
                         ephemeral: true
                     });
                 }
-
             } else {
                 await interaction.reply({
-                    content:
-                        '❌ That key is invalid or has already been used.',
+                    content: '❌ That key is invalid or has already been used.',
                     ephemeral: true
                 });
             }
-
             return;
         }
 
     } catch (error) {
-
         console.error('Interaction error:', error);
 
         try {
             if (interaction.deferred) {
                 await interaction.editReply({
-                    content:
-                        '❌ An error occurred while processing this interaction.'
+                    content: '❌ An error occurred while processing this interaction.'
                 });
-
             } else if (!interaction.replied) {
                 await interaction.reply({
-                    content:
-                        '❌ An internal error occurred. Check the bot console.',
+                    content: '❌ An internal error occurred. Check the bot console.',
                     ephemeral: true
                 });
             }
-
         } catch (replyError) {
-            console.error(
-                'Failed to send error response:',
-                replyError
-            );
+            console.error('Failed to send error response:', replyError);
         }
     }
 });
 
-
 // =====================================================
 // OBFUSCATE HANDLER
 // =====================================================
-
 async function handleObfuscate(interaction) {
-
-    const attachment =
-        interaction.options.getAttachment('file');
-
-    const preset =
-        interaction.options.getString('preset') || 'medium';
+    const attachment = interaction.options.getAttachment('file');
+    const preset = interaction.options.getString('preset') || 'medium';
 
     if (!attachment) {
-        await interaction.reply({
-            content: '❌ Please upload a Lua file.',
-            ephemeral: true
-        });
+        await interaction.reply({ content: '❌ Please upload a Lua file.', ephemeral: true });
         return;
     }
 
-    if (
-        !attachment.name ||
-        !attachment.name.toLowerCase().endsWith('.lua')
-    ) {
-        await interaction.reply({
-            content: '❌ Please upload a `.lua` file.',
-            ephemeral: true
-        });
+    if (!attachment.name || !attachment.name.toLowerCase().endsWith('.lua')) {
+        await interaction.reply({ content: '❌ Please upload a `.lua` file.', ephemeral: true });
         return;
     }
 
     if (attachment.size > 2 * 1024 * 1024) {
-        await interaction.reply({
-            content:
-                '❌ File is too large. Maximum size is 2MB.',
-            ephemeral: true
-        });
+        await interaction.reply({ content: '❌ File is too large. Maximum size is 2MB.', ephemeral: true });
         return;
     }
 
     await interaction.deferReply();
 
-    const jobId =
-        `${interaction.user.id}-${Date.now()}`;
-
-    const tempDir =
-        path.join(__dirname, 'temp');
+    const jobId = `${interaction.user.id}-${Date.now()}`;
+    const tempDir = path.join(__dirname, 'temp');
 
     if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, {
-            recursive: true
-        });
+        fs.mkdirSync(tempDir, { recursive: true });
     }
 
-    const inputPath =
-        path.join(tempDir, `${jobId}-input.lua`);
-
-    const outputPath =
-        path.join(tempDir, `${jobId}-obfuscated.lua`);
+    const inputPath = path.join(tempDir, `${jobId}-input.lua`);
+    const outputPath = path.join(tempDir, `${jobId}-obfuscated.lua`);
 
     try {
         const response = await fetch(attachment.url);
+        if (!response.ok) throw new Error('Failed to download attachment');
 
-        if (!response.ok) {
-            throw new Error('Failed to download attachment');
-        }
-
-        const buffer =
-            Buffer.from(await response.arrayBuffer());
-
+        const buffer = Buffer.from(await response.arrayBuffer());
         fs.writeFileSync(inputPath, buffer);
 
         await execFileAsync(
             'lua',
             [
-                path.join(
-                    __dirname,
-                    'obfuscator',
-                    'obfuscate.lua'
-                ),
+                path.join(__dirname, 'obfuscator', 'obfuscate.lua'),
                 inputPath,
                 outputPath,
                 preset
             ],
-            {
-                timeout: 30000,
-                maxBuffer: 10 * 1024 * 1024
-            }
+            { timeout: 30000, maxBuffer: 10 * 1024 * 1024 }
         );
 
         if (!fs.existsSync(outputPath)) {
-            throw new Error(
-                'Obfuscator did not generate an output file'
-            );
+            throw new Error('Obfuscator did not generate an output file');
         }
 
-        const outputFile =
-            new AttachmentBuilder(outputPath, {
-                name: `obfuscated-${attachment.name}`
-            });
+        const outputFile = new AttachmentBuilder(outputPath, {
+            name: `obfuscated-${attachment.name}`
+        });
 
         const embed = new EmbedBuilder()
             .setTitle('🔒 Lua Obfuscated')
             .setDescription(
-                `Successfully obfuscated **${attachment.name}**\n\n` +
-                `Preset: **${preset}**`
+                `Successfully obfuscated **${attachment.name}**\n\nPreset: **${preset}**`
             );
 
         await interaction.editReply({
             embeds: [embed],
             files: [outputFile]
         });
-
     } catch (error) {
         console.error('Obfuscation error:', error);
-
         await interaction.editReply({
-            content:
-                `❌ Obfuscation failed: \`${error.message}\``
+            content: `❌ Obfuscation failed: \`${error.message}\``
         });
-
     } finally {
-
         setTimeout(() => {
-            for (const file of [
-                inputPath,
-                outputPath
-            ]) {
+            for (const file of [inputPath, outputPath]) {
                 if (fs.existsSync(file)) {
-                    try {
-                        fs.unlinkSync(file);
-                    } catch {}
+                    try { fs.unlinkSync(file); } catch {}
                 }
             }
         }, 10000);
     }
 }
 
-
 // =====================================================
 // LOGIN
 // =====================================================
-
-client.login(process.env.DISCORD_TOKEN)
-    .catch((err) => {
-        console.error(
-            'Failed to log in to Discord:',
-            err
-        );
-        process.exit(1);
-    });
+client.login(process.env.DISCORD_TOKEN).catch((err) => {
+    console.error('Failed to log in to Discord:', err);
+    process.exit(1);
+});
