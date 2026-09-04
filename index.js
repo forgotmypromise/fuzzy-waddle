@@ -1,3 +1,4 @@
+````js
 require('dotenv').config();
 
 const {
@@ -77,6 +78,12 @@ function validateEnv() {
 
         process.exit(1);
     }
+
+    if (!process.env.DISCORD_WEBHOOK) {
+        console.warn(
+            'DISCORD_WEBHOOK is not configured. Webhook logging is disabled.'
+        );
+    }
 }
 
 validateEnv();
@@ -95,11 +102,17 @@ console.log(
 // =====================================================
 
 process.on('unhandledRejection', err => {
-    console.error('Unhandled promise rejection:', err);
+    console.error(
+        'Unhandled promise rejection:',
+        err
+    );
 });
 
 process.on('uncaughtException', err => {
-    console.error('Uncaught exception:', err);
+    console.error(
+        'Uncaught exception:',
+        err
+    );
 });
 
 
@@ -137,6 +150,64 @@ function canManageWhitelist(interaction) {
 
 
 // =====================================================
+// DISCORD WEBHOOK LOGGING
+// =====================================================
+
+async function sendDiscordLog({
+    title,
+    description,
+    color = 0xab0000,
+    fields = []
+}) {
+    const webhookURL = process.env.DISCORD_WEBHOOK;
+
+    if (!webhookURL) {
+        return;
+    }
+
+    try {
+        const embed = {
+            title,
+            description,
+            color,
+            fields,
+            timestamp: new Date().toISOString(),
+            footer: {
+                text: 'Polo License System'
+            }
+        };
+
+        const response = await fetch(
+            webhookURL,
+            {
+                method: 'POST',
+
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+
+                body: JSON.stringify({
+                    embeds: [embed]
+                })
+            }
+        );
+
+        if (!response.ok) {
+            console.error(
+                `Discord webhook failed: HTTP ${response.status}`
+            );
+        }
+
+    } catch (error) {
+        console.error(
+            'Discord webhook error:',
+            error
+        );
+    }
+}
+
+
+// =====================================================
 // CLOUDFLARE API
 // =====================================================
 
@@ -150,9 +221,12 @@ const ADMIN_SECRET =
 /**
  * Authenticated Cloudflare request.
  *
- * ADMIN_SECRET stays inside the bot environment.
+ * ADMIN_SECRET stays inside Railway.
  */
-async function cloudflareRequest(endpoint, body = {}) {
+async function cloudflareRequest(
+    endpoint,
+    body = {}
+) {
     const response = await fetch(
         `${POLO_API_URL}${endpoint}`,
         {
@@ -177,7 +251,10 @@ async function cloudflareRequest(endpoint, body = {}) {
         );
     }
 
-    if (!response.ok || data.success === false) {
+    if (
+        !response.ok ||
+        data.success === false
+    ) {
         const error = new Error(
             data.message ||
             `Cloudflare API error (${response.status})`
@@ -262,7 +339,10 @@ async function registerCommands() {
 // =====================================================
 
 function normalizeURL(value) {
-    if (!value || typeof value !== 'string') {
+    if (
+        !value ||
+        typeof value !== 'string'
+    ) {
         return null;
     }
 
@@ -317,7 +397,8 @@ function createLinkOrButton(
     customId,
     fallbackStyle = ButtonStyle.Secondary
 ) {
-    const normalizedURL = normalizeURL(url);
+    const normalizedURL =
+        normalizeURL(url);
 
     if (normalizedURL) {
         try {
@@ -353,6 +434,7 @@ function buildPanelRows(guildId) {
     try {
         config =
             getGuildConfig(guildId) || {};
+
     } catch (error) {
         console.error(
             'Failed to load guild config:',
@@ -397,43 +479,71 @@ function buildPanelRows(guildId) {
         );
 
     const row1 =
-        new ActionRowBuilder().addComponents(
-            getButton,
-            xpButton,
-            new ButtonBuilder()
-                .setCustomId('polo_redeem')
-                .setLabel('Redeem Key')
-                .setEmoji('🔑')
-                .setStyle(ButtonStyle.Secondary)
-        );
+        new ActionRowBuilder()
+            .addComponents(
+                getButton,
+                xpButton,
+
+                new ButtonBuilder()
+                    .setCustomId(
+                        'polo_redeem'
+                    )
+                    .setLabel(
+                        'Redeem Key'
+                    )
+                    .setEmoji('🔑')
+                    .setStyle(
+                        ButtonStyle.Secondary
+                    )
+            );
 
     const row2 =
-        new ActionRowBuilder().addComponents(
-            premiumButton,
+        new ActionRowBuilder()
+            .addComponents(
+                premiumButton,
 
-            new ButtonBuilder()
-                .setCustomId('polo_reset')
-                .setLabel('Reset')
-                .setEmoji('🔄')
-                .setStyle(ButtonStyle.Primary),
+                new ButtonBuilder()
+                    .setCustomId(
+                        'polo_reset'
+                    )
+                    .setLabel(
+                        'Reset'
+                    )
+                    .setEmoji('🔄')
+                    .setStyle(
+                        ButtonStyle.Primary
+                    ),
 
-            new ButtonBuilder()
-                .setCustomId('polo_status')
-                .setLabel('View Status')
-                .setEmoji('📊')
-                .setStyle(ButtonStyle.Secondary)
-        );
+                new ButtonBuilder()
+                    .setCustomId(
+                        'polo_status'
+                    )
+                    .setLabel(
+                        'View Status'
+                    )
+                    .setEmoji('📊')
+                    .setStyle(
+                        ButtonStyle.Secondary
+                    )
+            );
 
     const row3 =
-        new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId('polo_obfuscate')
-                .setLabel('Obfuscate')
-                .setEmoji('🛠️')
-                .setStyle(ButtonStyle.Secondary),
+        new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(
+                        'polo_obfuscate'
+                    )
+                    .setLabel(
+                        'Obfuscate'
+                    )
+                    .setEmoji('🛠️')
+                    .setStyle(
+                        ButtonStyle.Secondary
+                    ),
 
-            helpButton
-        );
+                helpButton
+            );
 
     return [
         row1,
@@ -447,69 +557,75 @@ function buildPanelRows(guildId) {
 // READY
 // =====================================================
 
-client.once('ready', async () => {
+client.once(
+    'ready',
+    async () => {
 
-    console.log(
-        `Logged in as ${client.user.tag}`
-    );
+        console.log(
+            `Logged in as ${client.user.tag}`
+        );
 
-    await registerCommands();
+        await registerCommands();
 
-    const statuses = [
-        {
-            name: '/polo',
-            type: ActivityType.Watching
-        },
+        const statuses = [
+            {
+                name: '/polo',
+                type: ActivityType.Watching
+            },
 
-        {
-            name: 'RH2',
-            type: ActivityType.Competing
-        },
+            {
+                name: 'RH2',
+                type: ActivityType.Competing
+            },
 
-        {
-            name: 'polohub',
-            type: ActivityType.Playing
+            {
+                name: 'polohub',
+                type: ActivityType.Playing
+            }
+        ];
+
+        let currentStatus = 0;
+
+        function updateStatus() {
+
+            const status =
+                statuses[currentStatus];
+
+            client.user.setPresence({
+                activities: [
+                    {
+                        name: status.name,
+                        type: status.type
+                    }
+                ],
+
+                status: 'online'
+            });
+
+            currentStatus =
+                (currentStatus + 1) %
+                statuses.length;
         }
-    ];
 
-    let currentStatus = 0;
+        updateStatus();
 
-    function updateStatus() {
-
-        const status =
-            statuses[currentStatus];
-
-        client.user.setPresence({
-            activities: [
-                {
-                    name: status.name,
-                    type: status.type
-                }
-            ],
-
-            status: 'online'
-        });
-
-        currentStatus =
-            (currentStatus + 1) %
-            statuses.length;
+        setInterval(
+            updateStatus,
+            10000
+        );
     }
-
-    updateStatus();
-
-    setInterval(
-        updateStatus,
-        10000
-    );
-});
+);
 
 
-client.on('error', err => {
-    console.error(
-        'Discord client error:',
-        err
-    );
-});
+client.on(
+    'error',
+    err => {
+        console.error(
+            'Discord client error:',
+            err
+        );
+    }
+);
 
 
 // =====================================================
@@ -526,7 +642,9 @@ client.on(
             // SLASH COMMANDS
             // =================================================
 
-            if (interaction.isChatInputCommand()) {
+            if (
+                interaction.isChatInputCommand()
+            ) {
 
                 // ---------------------------------------------
                 // /panel
@@ -612,15 +730,19 @@ client.on(
                     }
 
                     const sub =
-                        interaction.options.getSubcommand();
+                        interaction.options
+                            .getSubcommand();
 
-                    if (sub === 'add') {
+                    if (
+                        sub === 'add'
+                    ) {
 
                         const user =
-                            interaction.options.getUser(
-                                'user',
-                                true
-                            );
+                            interaction.options
+                                .getUser(
+                                    'user',
+                                    true
+                                );
 
                         const added =
                             addToWhitelist(
@@ -628,22 +750,26 @@ client.on(
                             );
 
                         await interaction.reply({
-                            content: added
-                                ? `✅ Added **${user.tag}** (\`${user.id}\`) to the whitelist.`
-                                : `ℹ️ **${user.tag}** is already on the whitelist.`,
+                            content:
+                                added
+                                    ? `✅ Added **${user.tag}** (\`${user.id}\`) to the whitelist.`
+                                    : `ℹ️ **${user.tag}** is already on the whitelist.`,
                             ephemeral: true
                         });
 
                         return;
                     }
 
-                    if (sub === 'remove') {
+                    if (
+                        sub === 'remove'
+                    ) {
 
                         const user =
-                            interaction.options.getUser(
-                                'user',
-                                true
-                            );
+                            interaction.options
+                                .getUser(
+                                    'user',
+                                    true
+                                );
 
                         const removed =
                             removeFromWhitelist(
@@ -651,21 +777,26 @@ client.on(
                             );
 
                         await interaction.reply({
-                            content: removed
-                                ? `✅ Removed **${user.tag}** from the whitelist.`
-                                : `ℹ️ **${user.tag}** was not on the whitelist.`,
+                            content:
+                                removed
+                                    ? `✅ Removed **${user.tag}** from the whitelist.`
+                                    : `ℹ️ **${user.tag}** was not on the whitelist.`,
                             ephemeral: true
                         });
 
                         return;
                     }
 
-                    if (sub === 'list') {
+                    if (
+                        sub === 'list'
+                    ) {
 
                         const list =
                             loadWhitelist();
 
-                        if (!list.length) {
+                        if (
+                            !list.length
+                        ) {
 
                             await interaction.reply({
                                 content:
@@ -684,7 +815,9 @@ client.on(
                                         try {
 
                                             const u =
-                                                await interaction.client.users.fetch(id);
+                                                await interaction.client.users.fetch(
+                                                    id
+                                                );
 
                                             return `• **${u.tag}** (\`${id}\`)`;
 
@@ -716,16 +849,18 @@ client.on(
                 ) {
 
                     const button =
-                        interaction.options.getString(
-                            'button',
-                            true
-                        );
+                        interaction.options
+                            .getString(
+                                'button',
+                                true
+                            );
 
                     const url =
-                        interaction.options.getString(
-                            'url',
-                            true
-                        );
+                        interaction.options
+                            .getString(
+                                'url',
+                                true
+                            );
 
                     setGuildLink(
                         interaction.guildId,
@@ -757,14 +892,16 @@ client.on(
                 // ---------------------------------------------
 
                 if (
-                    interaction.commandName === 'setpremiumrole'
+                    interaction.commandName ===
+                    'setpremiumrole'
                 ) {
 
                     const role =
-                        interaction.options.getRole(
-                            'role',
-                            true
-                        );
+                        interaction.options
+                            .getRole(
+                                'role',
+                                true
+                            );
 
                     setPremiumRole(
                         interaction.guildId,
@@ -786,14 +923,16 @@ client.on(
                 // ---------------------------------------------
 
                 if (
-                    interaction.commandName === 'setresetlimit'
+                    interaction.commandName ===
+                    'setresetlimit'
                 ) {
 
                     const amount =
-                        interaction.options.getInteger(
-                            'amount',
-                            true
-                        );
+                        interaction.options
+                            .getInteger(
+                                'amount',
+                                true
+                            );
 
                     setResetLimit(
                         interaction.guildId,
@@ -815,11 +954,13 @@ client.on(
                 // ---------------------------------------------
 
                 if (
-                    interaction.commandName === 'resethwidresets'
+                    interaction.commandName ===
+                    'resethwidresets'
                 ) {
 
                     if (
-                        typeof resetUser !== 'function'
+                        typeof resetUser !==
+                        'function'
                     ) {
 
                         await interaction.reply({
@@ -832,10 +973,11 @@ client.on(
                     }
 
                     const user =
-                        interaction.options.getUser(
-                            'user',
-                            true
-                        );
+                        interaction.options
+                            .getUser(
+                                'user',
+                                true
+                            );
 
                     const config =
                         getGuildConfig(
@@ -867,7 +1009,8 @@ client.on(
                 // =================================================
 
                 if (
-                    interaction.commandName === 'genkeys'
+                    interaction.commandName ===
+                    'genkeys'
                 ) {
 
                     if (
@@ -886,15 +1029,17 @@ client.on(
                     }
 
                     const amount =
-                        interaction.options.getInteger(
-                            'amount',
-                            true
-                        );
+                        interaction.options
+                            .getInteger(
+                                'amount',
+                                true
+                            );
 
                     const format =
-                        interaction.options.getString(
-                            'format'
-                        ) || 'polo';
+                        interaction.options
+                            .getString(
+                                'format'
+                            ) || 'polo';
 
                     await interaction.deferReply({
                         ephemeral: true
@@ -931,7 +1076,9 @@ client.on(
                         }
                     }
 
-                    if (!generated.length) {
+                    if (
+                        !generated.length
+                    ) {
 
                         await interaction.editReply({
                             content:
@@ -949,6 +1096,40 @@ client.on(
                             '\n```'
                     });
 
+                    // Log key generation
+                    await sendDiscordLog({
+                        title: '🔑 Keys Generated',
+                        description:
+                            'New license keys were generated.',
+                        color: 0x00aaff,
+                        fields: [
+                            {
+                                name: 'Discord User',
+                                value:
+                                    `<@${interaction.user.id}>`,
+                                inline: true
+                            },
+                            {
+                                name: 'Discord ID',
+                                value:
+                                    `\`${interaction.user.id}\``,
+                                inline: true
+                            },
+                            {
+                                name: 'Amount',
+                                value:
+                                    `\`${generated.length}\``,
+                                inline: true
+                            },
+                            {
+                                name: 'Format',
+                                value:
+                                    `\`${format}\``,
+                                inline: true
+                            }
+                        ]
+                    });
+
                     return;
                 }
 
@@ -958,7 +1139,8 @@ client.on(
                 // =================================================
 
                 if (
-                    interaction.commandName === 'obfuscate'
+                    interaction.commandName ===
+                    'obfuscate'
                 ) {
 
                     await handleObfuscate(
@@ -974,14 +1156,17 @@ client.on(
             // BUTTONS
             // =================================================
 
-            if (interaction.isButton()) {
+            if (
+                interaction.isButton()
+            ) {
 
                 // ---------------------------------------------
                 // Redeem button
                 // ---------------------------------------------
 
                 if (
-                    interaction.customId === 'polo_redeem'
+                    interaction.customId ===
+                    'polo_redeem'
                 ) {
 
                     const modal =
@@ -1026,12 +1211,15 @@ client.on(
                 // ---------------------------------------------
 
                 if (
-                    interaction.customId === 'polo_reset'
+                    interaction.customId ===
+                    'polo_reset'
                 ) {
 
                     if (
-                        typeof useReset !== 'function' ||
-                        typeof getRemaining !== 'function'
+                        typeof useReset !==
+                            'function' ||
+                        typeof getRemaining !==
+                            'function'
                     ) {
 
                         await interaction.reply({
@@ -1088,7 +1276,8 @@ client.on(
                 // ---------------------------------------------
 
                 if (
-                    interaction.customId === 'polo_status'
+                    interaction.customId ===
+                    'polo_status'
                 ) {
 
                     const config =
@@ -1104,7 +1293,8 @@ client.on(
                         maxResets;
 
                     if (
-                        typeof getRemaining === 'function'
+                        typeof getRemaining ===
+                        'function'
                     ) {
 
                         resetsLeft =
@@ -1149,6 +1339,10 @@ client.on(
                 }
 
 
+                // ---------------------------------------------
+                // Other buttons
+                // ---------------------------------------------
+
                 const replies = {
 
                     polo_get:
@@ -1190,7 +1384,8 @@ client.on(
 
             if (
                 interaction.isModalSubmit() &&
-                interaction.customId === 'polo_redeem_modal'
+                interaction.customId ===
+                    'polo_redeem_modal'
             ) {
 
                 const inputKey =
@@ -1215,23 +1410,20 @@ client.on(
                     ephemeral: true
                 });
 
+
                 try {
 
-                    /*
-                     * IMPORTANT:
-                     *
-                     * We use /redeem here, NOT /verify.
-                     *
-                     * The Discord user's ID is sent to Cloudflare,
-                     * allowing the Worker to permanently associate
-                     * the redeemed key with this Discord account.
-                     */
+                    // -----------------------------------------
+                    // Redeem key through Cloudflare
+                    // -----------------------------------------
+
                     const result =
                         await cloudflareRequest(
                             '/redeem',
                             {
                                 key: inputKey,
-                                discordId: interaction.user.id
+                                discordId:
+                                    interaction.user.id
                             }
                         );
 
@@ -1276,6 +1468,46 @@ client.on(
                             });
                         }
 
+
+                        // Log already redeemed key
+                        await sendDiscordLog({
+                            title:
+                                'ℹ️ Key Already Redeemed',
+                            description:
+                                'A user attempted to redeem a key already linked to their Discord account.',
+                            color: 0xffcc00,
+                            fields: [
+                                {
+                                    name:
+                                        'Discord User',
+                                    value:
+                                        `<@${interaction.user.id}>`,
+                                    inline: true
+                                },
+                                {
+                                    name:
+                                        'Discord ID',
+                                    value:
+                                        `\`${interaction.user.id}\``,
+                                    inline: true
+                                },
+                                {
+                                    name:
+                                        'Key',
+                                    value:
+                                        `\`${inputKey}\``,
+                                    inline: false
+                                },
+                                {
+                                    name:
+                                        'Guild',
+                                    value:
+                                        `\`${interaction.guildId || 'DM'}\``,
+                                    inline: false
+                                }
+                            ]
+                        });
+
                         return;
                     }
 
@@ -1291,11 +1523,15 @@ client.on(
                         )?.premiumRoleId ||
                         '1409762874754203742';
 
+                    let roleGiven = false;
+
                     try {
 
                         await interaction.member.roles.add(
                             roleId
                         );
+
+                        roleGiven = true;
 
                         await interaction.editReply({
                             content:
@@ -1319,12 +1555,127 @@ client.on(
                         });
                     }
 
+
+                    // -----------------------------------------
+                    // Webhook log
+                    // -----------------------------------------
+
+                    await sendDiscordLog({
+                        title:
+                            '🔑 License Redeemed',
+                        description:
+                            'A license key has been successfully redeemed through Discord.',
+                        color:
+                            0x00ff88,
+                        fields: [
+                            {
+                                name:
+                                    'Discord User',
+                                value:
+                                    `<@${interaction.user.id}>`,
+                                inline: true
+                            },
+                            {
+                                name:
+                                    'Discord ID',
+                                value:
+                                    `\`${interaction.user.id}\``,
+                                inline: true
+                            },
+                            {
+                                name:
+                                    'Key',
+                                value:
+                                    `\`${inputKey}\``,
+                                inline: false
+                            },
+                            {
+                                name:
+                                    'Premium Role',
+                                value:
+                                    `<@&${roleId}>`,
+                                inline: true
+                            },
+                            {
+                                name:
+                                    'Role Given',
+                                value:
+                                    roleGiven
+                                        ? '✅ Yes'
+                                        : '❌ No',
+                                inline: true
+                            },
+                            {
+                                name:
+                                    'Guild',
+                                value:
+                                    `\`${interaction.guildId || 'DM'}\``,
+                                inline: false
+                            }
+                        ]
+                    });
+
                 } catch (error) {
 
                     console.error(
                         'Key redemption error:',
                         error
                     );
+
+
+                    // -----------------------------------------
+                    // Log failed redemption
+                    // -----------------------------------------
+
+                    await sendDiscordLog({
+                        title:
+                            '❌ License Redemption Failed',
+                        description:
+                            'A license redemption attempt failed.',
+                        color:
+                            0xff3333,
+                        fields: [
+                            {
+                                name:
+                                    'Discord User',
+                                value:
+                                    `<@${interaction.user.id}>`,
+                                inline: true
+                            },
+                            {
+                                name:
+                                    'Discord ID',
+                                value:
+                                    `\`${interaction.user.id}\``,
+                                inline: true
+                            },
+                            {
+                                name:
+                                    'Key',
+                                value:
+                                    `\`${inputKey}\``,
+                                inline: false
+                            },
+                            {
+                                name:
+                                    'HTTP Status',
+                                value:
+                                    `\`${error.status || 'Unknown'}\``,
+                                inline: true
+                            },
+                            {
+                                name:
+                                    'Error',
+                                value:
+                                    `\`${String(
+                                        error.message ||
+                                        'Unknown error'
+                                    ).slice(0, 900)}\``,
+                                inline: false
+                            }
+                        ]
+                    });
+
 
                     // -----------------------------------------
                     // Specific Cloudflare errors
@@ -1348,7 +1699,10 @@ client.on(
 
                         await interaction.editReply({
                             content:
-                                `❌ ${error.message || 'That key is invalid or disabled.'}`
+                                `❌ ${
+                                    error.message ||
+                                    'That key is invalid or disabled.'
+                                }`
                         });
 
                         return;
@@ -1506,7 +1860,8 @@ async function handleObfuscate(
                 await apiRes
                     .text()
                     .catch(
-                        () => 'Unknown error'
+                        () =>
+                            'Unknown error'
                     );
 
             throw new Error(
@@ -1530,7 +1885,8 @@ async function handleObfuscate(
 
         if (
             !obfuscated ||
-            typeof obfuscated !== 'string'
+            typeof obfuscated !==
+                'string'
         ) {
 
             throw new Error(
@@ -1597,22 +1953,27 @@ async function handleObfuscate(
             files: [file]
         });
 
-        setTimeout(() => {
+        setTimeout(
+            () => {
 
-            try {
+                try {
 
-                if (
-                    fs.existsSync(outPath)
-                ) {
+                    if (
+                        fs.existsSync(
+                            outPath
+                        )
+                    ) {
 
-                    fs.unlinkSync(
-                        outPath
-                    );
-                }
+                        fs.unlinkSync(
+                            outPath
+                        );
+                    }
 
-            } catch {}
+                } catch {}
 
-        }, 15000);
+            },
+            15000
+        );
 
     } catch (error) {
 
@@ -1644,3 +2005,4 @@ client.login(
 
     process.exit(1);
 });
+````
