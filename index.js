@@ -27,7 +27,10 @@ const {
     loadWhitelist,
     addToWhitelist,
     removeFromWhitelist,
-    isWhitelisted
+    isWhitelisted,
+    setSupportStatus,
+    clearSupportStatus,
+    getSupportStatus
 } = require('./lib/storage');
 
 const resetsModule = require('./lib/resets');
@@ -145,6 +148,60 @@ function canManageWhitelist(interaction) {
     if (interaction.memberPermissions?.has('ManageGuild')) return true;
 
     return false;
+}
+
+
+// =====================================================
+// SUPPORT STATUS HELPERS
+// =====================================================
+
+const SUPPORT_USER_ID = '1374126925077024828';
+
+const REASON_MESSAGES = {
+    asleep: 'is asleep',
+    break: 'is currently on break',
+    busy: 'is currently busy / away',
+    offline: 'is currently offline / unavailable',
+    working: 'is currently working on something else'
+};
+
+/**
+ * Parse a time string like "12am", "00:00", "3:30pm", "15:30"
+ * Returns a Date object for *today or tomorrow* (whichever is next).
+ */
+function parseUntilTime(timeStr) {
+    if (!timeStr) return null;
+
+    const cleaned = timeStr.trim().toLowerCase().replace(/\s+/g, '');
+
+    // Match 12am / 12:00am / 3:30pm etc.
+    const match = cleaned.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+    if (!match) return null;
+
+    let hour = parseInt(match[1], 10);
+    const minute = match[2] ? parseInt(match[2], 10) : 0;
+    const meridiem = match[3] ? match[3].toLowerCase() : null;
+
+    if (minute < 0 || minute > 59) return null;
+
+    if (meridiem) {
+        if (hour < 1 || hour > 12) return null;
+        if (meridiem === 'pm' && hour !== 12) hour += 12;
+        if (meridiem === 'am' && hour === 12) hour = 0;
+    } else {
+        if (hour < 0 || hour > 23) return null;
+    }
+
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(hour, minute, 0, 0);
+
+    // If the time has already passed today, schedule for tomorrow
+    if (target <= now) {
+        target.setDate(target.getDate() + 1);
+    }
+
+    return target;
 }
 
 
@@ -625,6 +682,39 @@ client.on(
         );
     }
 );
+
+
+// =====================================================
+// TICKET CHANNEL AUTO-REPLY
+// =====================================================
+
+client.on('channelCreate', async (channel) => {
+    try {
+        // Only text channels that look like tickets
+        if (channel.type !== 0) return; // 0 = GuildText
+        if (!channel.name || !/^ticket-\d+/i.test(channel.name)) return;
+
+        // Small delay so the channel is fully ready / permissions settle
+        await new Promise((r) => setTimeout(r, 1500));
+
+        const status = getSupportStatus(channel.guildId);
+        let message;
+
+        if (status) {
+            const reasonText = REASON_MESSAGES[status.reason] || status.reason;
+            message =
+                `Hello thank you for contacting support, currently <@${SUPPORT_USER_ID}> ${reasonText}. ` +
+                `We will try to reply and help you as soon as possible.`;
+        } else {
+            message =
+                'Hello thank you for creating a ticket, please be patient and our support team will be right with you.';
+        }
+
+        await channel.send(message);
+    } catch (err) {
+        console.error('Failed to send ticket welcome message:', err);
+    }
+});
 
 
 // =====================================================
@@ -1145,6 +1235,86 @@ client.on(
                     await handleObfuscate(
                         interaction
                     );
+
+                    return;
+                }
+
+
+                // =================================================
+                // /setstatus
+                // =================================================
+
+                if (
+                    interaction.commandName ===
+                    'setstatus'
+                ) {
+
+                    if (
+                        !canUseRestrictedCommand(
+                            interaction
+                        )
+                    ) {
+
+                        await interaction.reply({
+                            content:
+                                '❌ You do not have permission to use this command.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    const timeStr =
+                        interaction.options.getString(
+                            'time',
+                            true
+                        );
+
+                    const reason =
+                        interaction.options.getString(
+                            'reason',
+                            true
+                        );
+
+                    const until =
+                        parseUntilTime(timeStr);
+
+                    if (!until) {
+
+                        await interaction.reply({
+                            content:
+                                '❌ Could not parse the time. Try formats like `12am`, `00:00`, `3:30pm`, or `15:30`.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    setSupportStatus(
+                        interaction.guildId,
+                        until.getTime(),
+                        reason
+                    );
+
+                    const readable = until.toLocaleString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true,
+                        month: 'short',
+                        day: 'numeric'
+                    });
+
+                    const reasonText =
+                        REASON_MESSAGES[reason] || reason;
+
+                    await interaction.reply({
+                        content:
+                            `✅ Support status set.\n` +
+                            `Until: **${readable}**\n` +
+                            `Reason: **${reasonText}**\n\n` +
+                            `New tickets will now show this status until that time.`,
+                        ephemeral: true
+                    });
 
                     return;
                 }
@@ -2004,4 +2174,3 @@ client.login(
 
     process.exit(1);
 });
-
