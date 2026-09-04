@@ -334,7 +334,7 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             // /free
-            if (interaction.commandName === 'free') {
+            if (interaction.commandName === 'FS') {
                 if (!canUseRestrictedCommand(interaction)) {
                     await interaction.reply({
                         content: '❌ You do not have permission to use this command.',
