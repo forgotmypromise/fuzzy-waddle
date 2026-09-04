@@ -18,8 +18,6 @@ const {
 
 const fs = require('fs');
 const path = require('path');
-const { execFile } = require('child_process');
-const { promisify } = require('util');
 
 const {
     getGuildConfig,
@@ -37,8 +35,6 @@ const resetsModule = require('./lib/resets');
 const { generateKey } = require('./lib/keygen');
 const { commandDefs } = require('./lib/commands');
 const DATA_DIR = require('./lib/data-dir');
-
-const execFileAsync = promisify(execFile);
 
 // =====================================================
 // MODULE FUNCTION COMPATIBILITY
@@ -123,13 +119,8 @@ function getOwnerIds() {
 function canUseRestrictedCommand(interaction) {
     const userId = interaction.user.id;
 
-    // Owners from .env
     if (getOwnerIds().includes(userId)) return true;
-
-    // Stored whitelist
     if (isWhitelisted(userId)) return true;
-
-    // Server admins
     if (interaction.memberPermissions?.has('Administrator')) return true;
     if (interaction.memberPermissions?.has('ManageGuild')) return true;
 
@@ -139,7 +130,6 @@ function canUseRestrictedCommand(interaction) {
 function canManageWhitelist(interaction) {
     const userId = interaction.user.id;
 
-    // Only owners + real admins can manage the list
     if (getOwnerIds().includes(userId)) return true;
     if (interaction.memberPermissions?.has('Administrator')) return true;
     if (interaction.memberPermissions?.has('ManageGuild')) return true;
@@ -354,11 +344,7 @@ client.on('interactionCreate', async (interaction) => {
                 }
 
                 const text = interaction.options.getString('text', true);
-
-                await interaction.reply({
-                    content: text
-                    // remove "ephemeral: true" if you want it public
-                });
+                await interaction.reply({ content: text });
                 return;
             }
 
@@ -511,7 +497,7 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
-            // /genkeys
+            // /genkeys  ← NOW FIXED
             if (interaction.commandName === 'genkeys') {
                 if (typeof addKeys !== 'function') {
                     console.error('keys.js exports:', Object.keys(keysModule));
@@ -535,7 +521,7 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
-            // /obfuscate
+            // /obfuscate  ← NOW USES ONLINE API
             if (interaction.commandName === 'obfuscate') {
                 await handleObfuscate(interaction);
                 return;
@@ -699,11 +685,11 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 // =====================================================
-// OBFUSCATE HANDLER
+// OBFUSCATE HANDLER (ONLINE API - hide.lat)
 // =====================================================
 async function handleObfuscate(interaction) {
     const attachment = interaction.options.getAttachment('file');
-    const preset = interaction.options.getString('preset') || 'medium';
+    const preset = interaction.options.getString('preset') || 'advanced';
 
     if (!attachment) {
         await interaction.reply({ content: '❌ Please upload a Lua file.', ephemeral: true });
@@ -715,72 +701,93 @@ async function handleObfuscate(interaction) {
         return;
     }
 
-    if (attachment.size > 2 * 1024 * 1024) {
-        await interaction.reply({ content: '❌ File is too large. Maximum size is 2MB.', ephemeral: true });
+    if (attachment.size > 500 * 1024) { // 500 KB limit of the API
+        await interaction.reply({
+            content: '❌ File is too large. Maximum size is **500 KB**.',
+            ephemeral: true
+        });
         return;
     }
 
     await interaction.deferReply();
 
-    const jobId = `${interaction.user.id}-${Date.now()}`;
-    const tempDir = path.join(__dirname, 'temp');
-
-    if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-    }
-
-    const inputPath = path.join(tempDir, `${jobId}-input.lua`);
-    const outputPath = path.join(tempDir, `${jobId}-obfuscated.lua`);
-
     try {
+        // Download the uploaded file
         const response = await fetch(attachment.url);
         if (!response.ok) throw new Error('Failed to download attachment');
 
-        const buffer = Buffer.from(await response.arrayBuffer());
-        fs.writeFileSync(inputPath, buffer);
+        const source = await response.text();
 
-        await execFileAsync(
-            'lua',
-            [
-                path.join(__dirname, 'obfuscator', 'obfuscate.lua'),
-                inputPath,
-                outputPath,
-                preset
-            ],
-            { timeout: 30000, maxBuffer: 10 * 1024 * 1024 }
-        );
-
-        if (!fs.existsSync(outputPath)) {
-            throw new Error('Obfuscator did not generate an output file');
-        }
-
-        const outputFile = new AttachmentBuilder(outputPath, {
-            name: `obfuscated-${attachment.name}`
+        // Call hide.lat free API
+        const apiRes = await fetch('https://hide.lat/api/obfuscate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                source: source,
+                tier: preset,          // lite | advanced | maximum
+                banner: false
+            })
         });
 
+        if (!apiRes.ok) {
+            const errText = await apiRes.text().catch(() => 'Unknown error');
+            throw new Error(`API returned ${apiRes.status}: ${errText.slice(0, 200)}`);
+        }
+
+        const data = await apiRes.json();
+
+        // The API usually returns { code: "..." } or { result: "..." } or just the raw string
+        const obfuscated =
+            data.code ||
+            data.result ||
+            data.output ||
+            data.obfuscated ||
+            (typeof data === 'string' ? data : null);
+
+        if (!obfuscated || typeof obfuscated !== 'string') {
+            throw new Error('API did not return obfuscated code');
+        }
+
+        // Create a temporary file and send it
+        const tempDir = path.join(__dirname, 'temp');
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+
+        const outName = `obfuscated-${attachment.name}`;
+        const outPath = path.join(tempDir, `${interaction.user.id}-${Date.now()}-${outName}`);
+
+        fs.writeFileSync(outPath, obfuscated, 'utf8');
+
+        const file = new AttachmentBuilder(outPath, { name: outName });
+
         const embed = new EmbedBuilder()
+            .setColor(0x00ff88)
             .setTitle('🔒 Lua Obfuscated')
             .setDescription(
-                `Successfully obfuscated **${attachment.name}**\n\nPreset: **${preset}**`
-            );
+                `Successfully obfuscated **${attachment.name}**\n\n` +
+                `Preset: **${preset}**\n` +
+                `Provider: hide.lat`
+            )
+            .setTimestamp();
 
         await interaction.editReply({
             embeds: [embed],
-            files: [outputFile]
+            files: [file]
         });
+
+        // Cleanup after a short delay
+        setTimeout(() => {
+            try { if (fs.existsSync(outPath)) fs.unlinkSync(outPath); } catch {}
+        }, 15000);
+
     } catch (error) {
         console.error('Obfuscation error:', error);
         await interaction.editReply({
             content: `❌ Obfuscation failed: \`${error.message}\``
         });
-    } finally {
-        setTimeout(() => {
-            for (const file of [inputPath, outputPath]) {
-                if (fs.existsSync(file)) {
-                    try { fs.unlinkSync(file); } catch {}
-                }
-            }
-        }, 10000);
     }
 }
 
