@@ -167,14 +167,12 @@ const REASON_MESSAGES = {
 
 /**
  * Parse a time string like "12am", "00:00", "3:30pm", "15:30"
- * Returns a Date object for *today or tomorrow* (whichever is next).
+ * Returns a Date object for today or tomorrow (whichever is next).
  */
 function parseUntilTime(timeStr) {
     if (!timeStr) return null;
 
     const cleaned = timeStr.trim().toLowerCase().replace(/\s+/g, '');
-
-    // Match 12am / 12:00am / 3:30pm etc.
     const match = cleaned.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
     if (!match) return null;
 
@@ -276,7 +274,6 @@ const ADMIN_SECRET =
 
 /**
  * Authenticated Cloudflare request.
- *
  * ADMIN_SECRET stays inside Railway.
  */
 async function cloudflareRequest(
@@ -332,7 +329,9 @@ async function cloudflareRequest(
 
 const client = new Client({
     intents: [
-        GatewayIntentBits.Guilds
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
     ]
 });
 
@@ -713,6 +712,47 @@ client.on('channelCreate', async (channel) => {
         await channel.send(message);
     } catch (err) {
         console.error('Failed to send ticket welcome message:', err);
+    }
+});
+
+
+// =====================================================
+// FREE SCRIPT AUTO-REPLY
+// =====================================================
+
+client.on('messageCreate', async (message) => {
+    try {
+        // Ignore bots
+        if (message.author.bot) return;
+
+        // Only work in guilds
+        if (!message.guild) return;
+
+        const content = message.content.toLowerCase();
+
+        // Keywords that trigger the reply
+        const triggers = [
+            'how do i get the free script',
+            'how do i get free script',
+            'how to get the free script',
+            'how to get free script',
+            'where is the free script',
+            'where can i get the free script',
+            'how do i get free',
+            'free script how',
+            'get free script',
+            'how get free script'
+        ];
+
+        const matched = triggers.some(trigger => content.includes(trigger));
+        if (!matched) return;
+
+        await message.reply({
+            content: 'You can obtain the free script by following the steps here: https://discord.com/channels/1409757916990541826/1544406119097831504'
+        });
+
+    } catch (err) {
+        console.error('Free script auto-reply error:', err);
     }
 });
 
