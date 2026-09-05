@@ -350,6 +350,21 @@ async function registerCommands() {
     );
 
     try {
+        // Global commands — required for DMs (can take up to ~1 hour to appear)
+        await rest.put(
+            Routes.applicationCommands(
+                process.env.CLIENT_ID
+            ),
+            {
+                body: commandDefs
+            }
+        );
+
+        console.log(
+            'Global slash commands registered (work in DMs + all servers).'
+        );
+
+        // Also register to the guild for instant availability in the server
         if (process.env.GUILD_ID) {
 
             await rest.put(
@@ -363,22 +378,7 @@ async function registerCommands() {
             );
 
             console.log(
-                'Guild slash commands registered.'
-            );
-
-        } else {
-
-            await rest.put(
-                Routes.applicationCommands(
-                    process.env.CLIENT_ID
-                ),
-                {
-                    body: commandDefs
-                }
-            );
-
-            console.log(
-                'Global slash commands registered.'
+                'Guild slash commands registered (instant in server).'
             );
         }
 
@@ -1807,7 +1807,8 @@ client.on(
                         .trim();
 
                 const appsChannelId =
-                    process.env.APPLICATIONS_CHANNEL_ID;
+                    process.env.APPLICATIONS_CHANNEL_ID ||
+                    '1545903366213869651';
 
                 if (!appsChannelId) {
 
