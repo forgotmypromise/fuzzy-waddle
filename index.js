@@ -1374,6 +1374,163 @@ client.on(
 
                     return;
                 }
+
+                // ---------------------------------------------
+                // /apply
+                // ---------------------------------------------
+
+                if (
+                    interaction.commandName === 'apply'
+                ) {
+
+                    const role =
+                        interaction.options.getString(
+                            'role',
+                            true
+                        );
+
+                    // Only Media applications are open
+                    if (
+                        role === 'staff' ||
+                        role === 'helper'
+                    ) {
+
+                        const label =
+                            role.charAt(0).toUpperCase() +
+                            role.slice(1);
+
+                        await interaction.reply({
+                            content:
+                                `❌ **${label}** applications are currently **closed**.\n\n` +
+                                `Only **Media** applications are open right now.`,
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    if (role === 'media') {
+
+                        const modal =
+                            new ModalBuilder()
+                                .setCustomId(
+                                    'media_application_modal'
+                                )
+                                .setTitle(
+                                    'Media Application'
+                                );
+
+                        const channelLink =
+                            new TextInputBuilder()
+                                .setCustomId(
+                                    'channel_link'
+                                )
+                                .setLabel(
+                                    'Channel / Content Link'
+                                )
+                                .setPlaceholder(
+                                    'https://youtube.com/@yourchannel or TikTok link'
+                                )
+                                .setStyle(
+                                    TextInputStyle.Short
+                                )
+                                .setRequired(true)
+                                .setMaxLength(200);
+
+                        const platform =
+                            new TextInputBuilder()
+                                .setCustomId(
+                                    'platform'
+                                )
+                                .setLabel(
+                                    'Platform'
+                                )
+                                .setPlaceholder(
+                                    'YouTube, TikTok, Instagram, Twitch, etc.'
+                                )
+                                .setStyle(
+                                    TextInputStyle.Short
+                                )
+                                .setRequired(true)
+                                .setMaxLength(50);
+
+                        const followers =
+                            new TextInputBuilder()
+                                .setCustomId(
+                                    'followers'
+                                )
+                                .setLabel(
+                                    'Follower / Subscriber Count'
+                                )
+                                .setPlaceholder(
+                                    'e.g. 12.5K'
+                                )
+                                .setStyle(
+                                    TextInputStyle.Short
+                                )
+                                .setRequired(true)
+                                .setMaxLength(30);
+
+                        const niche =
+                            new TextInputBuilder()
+                                .setCustomId(
+                                    'niche'
+                                )
+                                .setLabel(
+                                    'Content Type / Niche'
+                                )
+                                .setPlaceholder(
+                                    'Gaming, Roblox, edits, memes, etc.'
+                                )
+                                .setStyle(
+                                    TextInputStyle.Short
+                                )
+                                .setRequired(true)
+                                .setMaxLength(100);
+
+                        const why =
+                            new TextInputBuilder()
+                                .setCustomId(
+                                    'why'
+                                )
+                                .setLabel(
+                                    'Why do you want the Media role?'
+                                )
+                                .setPlaceholder(
+                                    'Tell us about yourself and why you would be a good fit...'
+                                )
+                                .setStyle(
+                                    TextInputStyle.Paragraph
+                                )
+                                .setRequired(true)
+                                .setMaxLength(1000);
+
+                        modal.addComponents(
+                            new ActionRowBuilder().addComponents(
+                                channelLink
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                platform
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                followers
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                niche
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                why
+                            )
+                        );
+
+                        await interaction.showModal(
+                            modal
+                        );
+
+                        return;
+                    }
+                }
+
             }
 
 
@@ -1598,6 +1755,150 @@ client.on(
                         ephemeral: true
                     });
                 }
+
+                return;
+            }
+
+
+
+            // =================================================
+            // MEDIA APPLICATION MODAL
+            // =================================================
+
+            if (
+                interaction.isModalSubmit() &&
+                interaction.customId ===
+                    'media_application_modal'
+            ) {
+
+                const channelLink =
+                    interaction.fields
+                        .getTextInputValue(
+                            'channel_link'
+                        )
+                        .trim();
+
+                const platform =
+                    interaction.fields
+                        .getTextInputValue(
+                            'platform'
+                        )
+                        .trim();
+
+                const followers =
+                    interaction.fields
+                        .getTextInputValue(
+                            'followers'
+                        )
+                        .trim();
+
+                const niche =
+                    interaction.fields
+                        .getTextInputValue(
+                            'niche'
+                        )
+                        .trim();
+
+                const why =
+                    interaction.fields
+                        .getTextInputValue(
+                            'why'
+                        )
+                        .trim();
+
+                const appsChannelId =
+                    process.env.APPLICATIONS_CHANNEL_ID;
+
+                if (!appsChannelId) {
+
+                    await interaction.reply({
+                        content:
+                            '❌ Applications channel is not configured. Please contact an admin.',
+                        ephemeral: true
+                    });
+
+                    return;
+                }
+
+                const appsChannel =
+                    await interaction.client.channels
+                        .fetch(appsChannelId)
+                        .catch(() => null);
+
+                if (!appsChannel) {
+
+                    await interaction.reply({
+                        content:
+                            '❌ Could not find the applications channel. Please contact an admin.',
+                        ephemeral: true
+                    });
+
+                    return;
+                }
+
+                const embed =
+                    new EmbedBuilder()
+                        .setTitle(
+                            '📺 New Media Application'
+                        )
+                        .setColor(0x5865f2)
+                        .setAuthor({
+                            name: interaction.user.tag,
+                            iconURL:
+                                interaction.user.displayAvatarURL(
+                                    {
+                                        dynamic: true
+                                    }
+                                )
+                        })
+                        .addFields(
+                            {
+                                name: 'Applicant',
+                                value:
+                                    `${interaction.user} (\`${interaction.user.id}\`)`,
+                                inline: false
+                            },
+                            {
+                                name: 'Channel / Link',
+                                value: channelLink,
+                                inline: false
+                            },
+                            {
+                                name: 'Platform',
+                                value: platform,
+                                inline: true
+                            },
+                            {
+                                name: 'Followers',
+                                value: followers,
+                                inline: true
+                            },
+                            {
+                                name: 'Niche',
+                                value: niche,
+                                inline: true
+                            },
+                            {
+                                name: 'Why they want Media',
+                                value: why,
+                                inline: false
+                            }
+                        )
+                        .setTimestamp()
+                        .setFooter({
+                            text:
+                                `User ID: ${interaction.user.id}`
+                        });
+
+                await appsChannel.send({
+                    embeds: [embed]
+                });
+
+                await interaction.reply({
+                    content:
+                        '✅ Your **Media** application has been submitted! Staff will review it soon.',
+                    ephemeral: true
+                });
 
                 return;
             }
