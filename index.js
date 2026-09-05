@@ -173,6 +173,7 @@ function parseUntilTime(timeStr) {
     if (!timeStr) return null;
 
     const cleaned = timeStr.trim().toLowerCase().replace(/\s+/g, '');
+
     const match = cleaned.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
     if (!match) return null;
 
@@ -274,6 +275,7 @@ const ADMIN_SECRET =
 
 /**
  * Authenticated Cloudflare request.
+ *
  * ADMIN_SECRET stays inside Railway.
  */
 async function cloudflareRequest(
@@ -730,8 +732,20 @@ client.on('messageCreate', async (message) => {
 
         const content = message.content.toLowerCase();
 
-        // Keywords that trigger the reply
-        const triggers = [
+        // Broader detection
+        const isAskingAboutFreeScript =
+            (content.includes('free script') || content.includes('free scripts')) &&
+            (
+                content.includes('how') ||
+                content.includes('where') ||
+                content.includes('get') ||
+                content.includes('obtain') ||
+                content.includes('can i') ||
+                content.includes('do i')
+            );
+
+        // Also catch common exact phrases
+        const exactTriggers = [
             'how do i get the free script',
             'how do i get free script',
             'how to get the free script',
@@ -739,13 +753,15 @@ client.on('messageCreate', async (message) => {
             'where is the free script',
             'where can i get the free script',
             'how do i get free',
-            'free script how',
             'get free script',
             'how get free script'
         ];
 
-        const matched = triggers.some(trigger => content.includes(trigger));
+        const matched = isAskingAboutFreeScript || exactTriggers.some(t => content.includes(t));
+
         if (!matched) return;
+
+        console.log(`[Free Script] Triggered by ${message.author.tag}: "${message.content}"`);
 
         await message.reply({
             content: 'You can obtain the free script by following the steps here: https://discord.com/channels/1409757916990541826/1544406119097831504'
