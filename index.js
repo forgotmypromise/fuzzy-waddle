@@ -29,14 +29,21 @@ const {
     removeFromWhitelist,
     isWhitelisted,
     setSupportStatus,
-    clearSupportStatus,
     getSupportStatus
 } = require('./lib/storage');
 
 const resetsModule = require('./lib/resets');
-const { generateKey } = require('./lib/keygen');
-const { commandDefs } = require('./lib/commands');
-const DATA_DIR = require('./lib/data-dir');
+
+const {
+    generateKey
+} = require('./lib/keygen');
+
+const {
+    commandDefs
+} = require('./lib/commands');
+
+const DATA_DIR =
+    require('./lib/data-dir');
 
 const useReset =
     resetsModule.useReset ||
@@ -69,9 +76,10 @@ function validateEnv() {
         'ADMIN_SECRET'
     ];
 
-    const missing = required.filter(
-        key => !process.env[key]
-    );
+    const missing =
+        required.filter(
+            key => !process.env[key]
+        );
 
     if (missing.length) {
         console.error(
@@ -103,19 +111,25 @@ console.log(
 // ERROR HANDLING
 // =====================================================
 
-process.on('unhandledRejection', err => {
-    console.error(
-        'Unhandled promise rejection:',
-        err
-    );
-});
+process.on(
+    'unhandledRejection',
+    err => {
+        console.error(
+            'Unhandled promise rejection:',
+            err
+        );
+    }
+);
 
-process.on('uncaughtException', err => {
-    console.error(
-        'Uncaught exception:',
-        err
-    );
-});
+process.on(
+    'uncaughtException',
+    err => {
+        console.error(
+            'Uncaught exception:',
+            err
+        );
+    }
+);
 
 
 // =====================================================
@@ -123,39 +137,89 @@ process.on('uncaughtException', err => {
 // =====================================================
 
 function getOwnerIds() {
-    return (process.env.OWNER_IDS || '')
+    return (
+        process.env.OWNER_IDS || ''
+    )
         .split(/[,\s]+/)
         .map(id => id.trim())
         .filter(Boolean);
 }
 
-function canUseRestrictedCommand(interaction) {
-    const userId = interaction.user.id;
+function canUseRestrictedCommand(
+    interaction
+) {
+    const userId =
+        interaction.user.id;
 
-    if (getOwnerIds().includes(userId)) return true;
-    if (isWhitelisted(userId)) return true;
-    if (interaction.memberPermissions?.has('Administrator')) return true;
-    if (interaction.memberPermissions?.has('ManageGuild')) return true;
+    if (
+        getOwnerIds().includes(userId)
+    ) {
+        return true;
+    }
+
+    if (
+        isWhitelisted(userId)
+    ) {
+        return true;
+    }
+
+    if (
+        interaction.memberPermissions?.has(
+            'Administrator'
+        )
+    ) {
+        return true;
+    }
+
+    if (
+        interaction.memberPermissions?.has(
+            'ManageGuild'
+        )
+    ) {
+        return true;
+    }
 
     return false;
 }
 
-function canManageWhitelist(interaction) {
-    const userId = interaction.user.id;
+function canManageWhitelist(
+    interaction
+) {
+    const userId =
+        interaction.user.id;
 
-    if (getOwnerIds().includes(userId)) return true;
-    if (interaction.memberPermissions?.has('Administrator')) return true;
-    if (interaction.memberPermissions?.has('ManageGuild')) return true;
+    if (
+        getOwnerIds().includes(userId)
+    ) {
+        return true;
+    }
+
+    if (
+        interaction.memberPermissions?.has(
+            'Administrator'
+        )
+    ) {
+        return true;
+    }
+
+    if (
+        interaction.memberPermissions?.has(
+            'ManageGuild'
+        )
+    ) {
+        return true;
+    }
 
     return false;
 }
 
 
 // =====================================================
-// SUPPORT STATUS HELPERS
+// SUPPORT STATUS
 // =====================================================
 
-const SUPPORT_USER_ID = '1374126925077024828';
+const SUPPORT_USER_ID =
+    '1374126925077024828';
 
 const REASON_MESSAGES = {
     asleep: 'is asleep',
@@ -165,39 +229,89 @@ const REASON_MESSAGES = {
     working: 'is currently working on something else'
 };
 
-/**
- * Parse a time string like "12am", "00:00", "3:30pm", "15:30"
- * Returns a Date object for today or tomorrow (whichever is next).
- */
 function parseUntilTime(timeStr) {
     if (!timeStr) return null;
 
-    const cleaned = timeStr.trim().toLowerCase().replace(/\s+/g, '');
+    const cleaned =
+        timeStr
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, '');
 
-    const match = cleaned.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+    const match =
+        cleaned.match(
+            /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i
+        );
+
     if (!match) return null;
 
-    let hour = parseInt(match[1], 10);
-    const minute = match[2] ? parseInt(match[2], 10) : 0;
-    const meridiem = match[3] ? match[3].toLowerCase() : null;
+    let hour =
+        parseInt(match[1], 10);
 
-    if (minute < 0 || minute > 59) return null;
+    const minute =
+        match[2]
+            ? parseInt(match[2], 10)
+            : 0;
 
-    if (meridiem) {
-        if (hour < 1 || hour > 12) return null;
-        if (meridiem === 'pm' && hour !== 12) hour += 12;
-        if (meridiem === 'am' && hour === 12) hour = 0;
-    } else {
-        if (hour < 0 || hour > 23) return null;
+    const meridiem =
+        match[3]
+            ? match[3].toLowerCase()
+            : null;
+
+    if (
+        minute < 0 ||
+        minute > 59
+    ) {
+        return null;
     }
 
-    const now = new Date();
-    const target = new Date(now);
-    target.setHours(hour, minute, 0, 0);
+    if (meridiem) {
+        if (
+            hour < 1 ||
+            hour > 12
+        ) {
+            return null;
+        }
 
-    // If the time has already passed today, schedule for tomorrow
+        if (
+            meridiem === 'pm' &&
+            hour !== 12
+        ) {
+            hour += 12;
+        }
+
+        if (
+            meridiem === 'am' &&
+            hour === 12
+        ) {
+            hour = 0;
+        }
+    } else {
+        if (
+            hour < 0 ||
+            hour > 23
+        ) {
+            return null;
+        }
+    }
+
+    const now =
+        new Date();
+
+    const target =
+        new Date(now);
+
+    target.setHours(
+        hour,
+        minute,
+        0,
+        0
+    );
+
     if (target <= now) {
-        target.setDate(target.getDate() + 1);
+        target.setDate(
+            target.getDate() + 1
+        );
     }
 
     return target;
@@ -214,7 +328,8 @@ async function sendDiscordLog({
     color = 0xab0000,
     fields = []
 }) {
-    const webhookURL = process.env.DISCORD_WEBHOOK;
+    const webhookURL =
+        process.env.DISCORD_WEBHOOK;
 
     if (!webhookURL) {
         return;
@@ -226,26 +341,28 @@ async function sendDiscordLog({
             description,
             color,
             fields,
-            timestamp: new Date().toISOString(),
+            timestamp:
+                new Date().toISOString(),
             footer: {
-                text: 'Polo License System'
+                text:
+                    'Polo License System'
             }
         };
 
-        const response = await fetch(
-            webhookURL,
-            {
-                method: 'POST',
-
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-
-                body: JSON.stringify({
-                    embeds: [embed]
-                })
-            }
-        );
+        const response =
+            await fetch(
+                webhookURL,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type':
+                            'application/json'
+                    },
+                    body: JSON.stringify({
+                        embeds: [embed]
+                    })
+                }
+            );
 
         if (!response.ok) {
             console.error(
@@ -267,7 +384,8 @@ async function sendDiscordLog({
 // =====================================================
 
 const POLO_API_URL =
-    process.env.POLO_API_URL.replace(/\/+$/, '');
+    process.env.POLO_API_URL
+        .replace(/\/+$/, '');
 
 const ADMIN_SECRET =
     process.env.ADMIN_SECRET;
@@ -276,30 +394,36 @@ const ADMIN_SECRET =
 /**
  * Authenticated Cloudflare request.
  *
- * ADMIN_SECRET stays inside Railway.
+ * ADMIN_SECRET never leaves Railway.
  */
 async function cloudflareRequest(
     endpoint,
     body = {}
 ) {
-    const response = await fetch(
-        `${POLO_API_URL}${endpoint}`,
-        {
-            method: 'POST',
+    const response =
+        await fetch(
+            `${POLO_API_URL}${endpoint}`,
+            {
+                method: 'POST',
 
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${ADMIN_SECRET}`
-            },
+                headers: {
+                    'Content-Type':
+                        'application/json',
 
-            body: JSON.stringify(body)
-        }
-    );
+                    'Authorization':
+                        `Bearer ${ADMIN_SECRET}`
+                },
+
+                body:
+                    JSON.stringify(body)
+            }
+        );
 
     let data;
 
     try {
-        data = await response.json();
+        data =
+            await response.json();
     } catch {
         throw new Error(
             `Cloudflare returned an invalid response (${response.status})`
@@ -310,13 +434,17 @@ async function cloudflareRequest(
         !response.ok ||
         data.success === false
     ) {
-        const error = new Error(
-            data.message ||
-            `Cloudflare API error (${response.status})`
-        );
+        const error =
+            new Error(
+                data.message ||
+                `Cloudflare API error (${response.status})`
+            );
 
-        error.status = response.status;
-        error.data = data;
+        error.status =
+            response.status;
+
+        error.data =
+            data;
 
         throw error;
     }
@@ -329,13 +457,14 @@ async function cloudflareRequest(
 // DISCORD CLIENT
 // =====================================================
 
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
-});
+const client =
+    new Client({
+        intents: [
+            GatewayIntentBits.Guilds,
+            GatewayIntentBits.GuildMessages,
+            GatewayIntentBits.MessageContent
+        ]
+    });
 
 
 // =====================================================
@@ -343,20 +472,21 @@ const client = new Client({
 // =====================================================
 
 async function registerCommands() {
-    const rest = new REST({
-        version: '10'
-    }).setToken(
-        process.env.DISCORD_TOKEN
-    );
+    const rest =
+        new REST({
+            version: '10'
+        }).setToken(
+            process.env.DISCORD_TOKEN
+        );
 
     try {
-        // Global commands — required for DMs (can take up to ~1 hour to appear)
         await rest.put(
             Routes.applicationCommands(
                 process.env.CLIENT_ID
             ),
             {
-                body: commandDefs
+                body:
+                    commandDefs
             }
         );
 
@@ -364,16 +494,17 @@ async function registerCommands() {
             'Global slash commands registered (work in DMs + all servers).'
         );
 
-        // Also register to the guild for instant availability in the server
-        if (process.env.GUILD_ID) {
-
+        if (
+            process.env.GUILD_ID
+        ) {
             await rest.put(
                 Routes.applicationGuildCommands(
                     process.env.CLIENT_ID,
                     process.env.GUILD_ID
                 ),
                 {
-                    body: commandDefs
+                    body:
+                        commandDefs
                 }
             );
 
@@ -403,13 +534,16 @@ function normalizeURL(value) {
         return null;
     }
 
-    value = value.trim();
+    value =
+        value.trim();
 
     if (!value) {
         return null;
     }
 
-    if (/^https?:\/\//i.test(value)) {
+    if (
+        /^https?:\/\//i.test(value)
+    ) {
         return value;
     }
 
@@ -432,12 +566,13 @@ function buildPanelEmbed() {
             '📄 **Get Script** — Get Script\n' +
             '⚡ **Get XP Script** — Get XP Script\n' +
             '🔑 **Redeem Key** — Upgrade your access level\n' +
-            '🔄 **Reset HWID** — Reset HWID\n' +
+            '🔄 **Reset HWID** — Reset Roblox binding\n' +
             '📊 **View Status** — Check your account info\n' +
             '❓ **Help** — Get support and guidance'
         )
         .setFooter({
-            text: 'Polo Panel • Key Manager System'
+            text:
+                'Polo Panel • Key Manager System'
         })
         .setTimestamp();
 }
@@ -462,8 +597,12 @@ function createLinkOrButton(
             return new ButtonBuilder()
                 .setLabel(label)
                 .setEmoji(emoji)
-                .setStyle(ButtonStyle.Link)
-                .setURL(normalizedURL);
+                .setStyle(
+                    ButtonStyle.Link
+                )
+                .setURL(
+                    normalizedURL
+                );
 
         } catch (error) {
             console.error(
@@ -477,7 +616,9 @@ function createLinkOrButton(
         .setCustomId(customId)
         .setLabel(label)
         .setEmoji(emoji)
-        .setStyle(fallbackStyle);
+        .setStyle(
+            fallbackStyle
+        );
 }
 
 
@@ -490,7 +631,9 @@ function buildPanelRows(guildId) {
 
     try {
         config =
-            getGuildConfig(guildId) || {};
+            getGuildConfig(
+                guildId
+            ) || {};
 
     } catch (error) {
         console.error(
@@ -617,7 +760,6 @@ function buildPanelRows(guildId) {
 client.once(
     'ready',
     async () => {
-
         console.log(
             `Logged in as ${client.user.tag}`
         );
@@ -627,35 +769,36 @@ client.once(
         const statuses = [
             {
                 name: '/polo',
-                type: ActivityType.Watching
+                type:
+                    ActivityType.Watching
             },
-
             {
                 name: 'RH2',
-                type: ActivityType.Competing
+                type:
+                    ActivityType.Competing
             },
-
             {
                 name: 'polohub',
-                type: ActivityType.Playing
+                type:
+                    ActivityType.Playing
             }
         ];
 
         let currentStatus = 0;
 
         function updateStatus() {
-
             const status =
                 statuses[currentStatus];
 
             client.user.setPresence({
                 activities: [
                     {
-                        name: status.name,
-                        type: status.type
+                        name:
+                            status.name,
+                        type:
+                            status.type
                     }
                 ],
-
                 status: 'online'
             });
 
@@ -689,88 +832,150 @@ client.on(
 // TICKET CHANNEL AUTO-REPLY
 // =====================================================
 
-client.on('channelCreate', async (channel) => {
-    try {
-        // Only text channels that look like tickets
-        if (channel.type !== 0) return; // 0 = GuildText
-        if (!channel.name || !/^ticket-\d+/i.test(channel.name)) return;
+client.on(
+    'channelCreate',
+    async channel => {
+        try {
+            if (
+                channel.type !== 0
+            ) {
+                return;
+            }
 
-        // Small delay so the channel is fully ready / permissions settle
-        await new Promise((r) => setTimeout(r, 1500));
+            if (
+                !channel.name ||
+                !/^ticket-\d+/i.test(
+                    channel.name
+                )
+            ) {
+                return;
+            }
 
-        const status = getSupportStatus(channel.guildId);
-        let message;
+            await new Promise(
+                resolve =>
+                    setTimeout(
+                        resolve,
+                        1500
+                    )
+            );
 
-        if (status) {
-            const reasonText = REASON_MESSAGES[status.reason] || status.reason;
-            message =
-                `Hello thank you for contacting support, currently <@${SUPPORT_USER_ID}> ${reasonText}. ` +
-                `We will try to reply and help you as soon as possible.`;
-        } else {
-            message =
-                'Hello thank you for creating a ticket, please be patient and our support team will be right with you.';
+            const status =
+                getSupportStatus(
+                    channel.guildId
+                );
+
+            let message;
+
+            if (status) {
+                const reasonText =
+                    REASON_MESSAGES[
+                        status.reason
+                    ] ||
+                    status.reason;
+
+                message =
+                    `Hello thank you for contacting support, currently <@${SUPPORT_USER_ID}> ${reasonText}. ` +
+                    `We will try to reply and help you as soon as possible.`;
+            } else {
+                message =
+                    'Hello thank you for creating a ticket, please be patient and our support team will be right with you.';
+            }
+
+            await channel.send(
+                message
+            );
+
+        } catch (err) {
+            console.error(
+                'Failed to send ticket welcome message:',
+                err
+            );
         }
-
-        await channel.send(message);
-    } catch (err) {
-        console.error('Failed to send ticket welcome message:', err);
     }
-});
+);
 
 
 // =====================================================
 // FREE SCRIPT AUTO-REPLY
 // =====================================================
 
-client.on('messageCreate', async (message) => {
-    try {
-        // Ignore bots
-        if (message.author.bot) return;
+client.on(
+    'messageCreate',
+    async message => {
+        try {
+            if (
+                message.author.bot
+            ) {
+                return;
+            }
 
-        // Only work in guilds
-        if (!message.guild) return;
+            if (
+                !message.guild
+            ) {
+                return;
+            }
 
-        const content = message.content.toLowerCase();
+            const content =
+                message.content.toLowerCase();
 
-        // Broader detection
-        const isAskingAboutFreeScript =
-            (content.includes('free script') || content.includes('free scripts')) &&
-            (
-                content.includes('how') ||
-                content.includes('where') ||
-                content.includes('get') ||
-                content.includes('obtain') ||
-                content.includes('can i') ||
-                content.includes('do i')
+            const isAskingAboutFreeScript =
+                (
+                    content.includes(
+                        'free script'
+                    ) ||
+                    content.includes(
+                        'free scripts'
+                    )
+                ) &&
+                (
+                    content.includes('how') ||
+                    content.includes('where') ||
+                    content.includes('get') ||
+                    content.includes('obtain') ||
+                    content.includes('can i') ||
+                    content.includes('do i')
+                );
+
+            const exactTriggers = [
+                'how do i get the free script',
+                'how do i get free script',
+                'how to get the free script',
+                'how to get free script',
+                'where is the free script',
+                'where can i get the free script',
+                'how do i get free',
+                'get free script',
+                'how get free script'
+            ];
+
+            const matched =
+                isAskingAboutFreeScript ||
+                exactTriggers.some(
+                    t =>
+                        content.includes(t)
+                );
+
+            if (!matched) {
+                return;
+            }
+
+            console.log(
+                `[Free Script] Triggered by ${message.author.tag}: "${message.content}"`
             );
 
-        // Also catch common exact phrases
-        const exactTriggers = [
-            'how do i get the free script',
-            'how do i get free script',
-            'how to get the free script',
-            'how to get free script',
-            'where is the free script',
-            'where can i get the free script',
-            'how do i get free',
-            'get free script',
-            'how get free script'
-        ];
+            await message.reply({
+                content:
+                    'You can obtain the free script by following the steps here: https://discord.com/channels/1409757916990541826/1544406119097831504'
+            });
 
-        const matched = isAskingAboutFreeScript || exactTriggers.some(t => content.includes(t));
-
-        if (!matched) return;
-
-        console.log(`[Free Script] Triggered by ${message.author.tag}: "${message.content}"`);
-
-        await message.reply({
-            content: 'You can obtain the free script by following the steps here: https://discord.com/channels/1409757916990541826/1544406119097831504'
-        });
-
-    } catch (err) {
-        console.error('Free script auto-reply error:', err);
+        } catch (err) {
+            console.error(
+                'Free script auto-reply error:',
+                err
+            );
+        }
     }
-});
+);
 
 
 // =====================================================
@@ -780,7 +985,6 @@ client.on('messageCreate', async (message) => {
 client.on(
     'interactionCreate',
     async interaction => {
-
         try {
 
             // =================================================
@@ -796,14 +1000,13 @@ client.on(
                 // ---------------------------------------------
 
                 if (
-                    interaction.commandName === 'panel'
+                    interaction.commandName ===
+                    'panel'
                 ) {
-
                     await interaction.reply({
                         embeds: [
                             buildPanelEmbed()
                         ],
-
                         components:
                             buildPanelRows(
                                 interaction.guildId
@@ -819,15 +1022,14 @@ client.on(
                 // ---------------------------------------------
 
                 if (
-                    interaction.commandName === 'free'
+                    interaction.commandName ===
+                    'free'
                 ) {
-
                     if (
                         !canUseRestrictedCommand(
                             interaction
                         )
                     ) {
-
                         await interaction.reply({
                             content:
                                 '❌ You do not have permission to use this command.',
@@ -856,15 +1058,14 @@ client.on(
                 // ---------------------------------------------
 
                 if (
-                    interaction.commandName === 'whitelist'
+                    interaction.commandName ===
+                    'whitelist'
                 ) {
-
                     if (
                         !canManageWhitelist(
                             interaction
                         )
                     ) {
-
                         await interaction.reply({
                             content:
                                 '❌ Only owners and admins can manage the whitelist.',
@@ -881,13 +1082,11 @@ client.on(
                     if (
                         sub === 'add'
                     ) {
-
                         const user =
-                            interaction.options
-                                .getUser(
-                                    'user',
-                                    true
-                                );
+                            interaction.options.getUser(
+                                'user',
+                                true
+                            );
 
                         const added =
                             addToWhitelist(
@@ -908,13 +1107,11 @@ client.on(
                     if (
                         sub === 'remove'
                     ) {
-
                         const user =
-                            interaction.options
-                                .getUser(
-                                    'user',
-                                    true
-                                );
+                            interaction.options.getUser(
+                                'user',
+                                true
+                            );
 
                         const removed =
                             removeFromWhitelist(
@@ -935,14 +1132,12 @@ client.on(
                     if (
                         sub === 'list'
                     ) {
-
                         const list =
                             loadWhitelist();
 
                         if (
                             !list.length
                         ) {
-
                             await interaction.reply({
                                 content:
                                     '📋 The whitelist is currently empty.',
@@ -956,9 +1151,7 @@ client.on(
                             await Promise.all(
                                 list.map(
                                     async id => {
-
                                         try {
-
                                             const u =
                                                 await interaction.client.users.fetch(
                                                     id
@@ -967,7 +1160,6 @@ client.on(
                                             return `• **${u.tag}** (\`${id}\`)`;
 
                                         } catch {
-
                                             return `• Unknown user (\`${id}\`)`;
                                         }
                                     }
@@ -990,22 +1182,20 @@ client.on(
                 // ---------------------------------------------
 
                 if (
-                    interaction.commandName === 'setlink'
+                    interaction.commandName ===
+                    'setlink'
                 ) {
-
                     const button =
-                        interaction.options
-                            .getString(
-                                'button',
-                                true
-                            );
+                        interaction.options.getString(
+                            'button',
+                            true
+                        );
 
                     const url =
-                        interaction.options
-                            .getString(
-                                'url',
-                                true
-                            );
+                        interaction.options.getString(
+                            'url',
+                            true
+                        );
 
                     setGuildLink(
                         interaction.guildId,
@@ -1040,13 +1230,11 @@ client.on(
                     interaction.commandName ===
                     'setpremiumrole'
                 ) {
-
                     const role =
-                        interaction.options
-                            .getRole(
-                                'role',
-                                true
-                            );
+                        interaction.options.getRole(
+                            'role',
+                            true
+                        );
 
                     setPremiumRole(
                         interaction.guildId,
@@ -1071,13 +1259,11 @@ client.on(
                     interaction.commandName ===
                     'setresetlimit'
                 ) {
-
                     const amount =
-                        interaction.options
-                            .getInteger(
-                                'amount',
-                                true
-                            );
+                        interaction.options.getInteger(
+                            'amount',
+                            true
+                        );
 
                     setResetLimit(
                         interaction.guildId,
@@ -1102,12 +1288,10 @@ client.on(
                     interaction.commandName ===
                     'resethwidresets'
                 ) {
-
                     if (
                         typeof resetUser !==
                         'function'
                     ) {
-
                         await interaction.reply({
                             content:
                                 '❌ Reset system error.',
@@ -1118,11 +1302,10 @@ client.on(
                     }
 
                     const user =
-                        interaction.options
-                            .getUser(
-                                'user',
-                                true
-                            );
+                        interaction.options.getUser(
+                            'user',
+                            true
+                        );
 
                     const config =
                         getGuildConfig(
@@ -1157,13 +1340,11 @@ client.on(
                     interaction.commandName ===
                     'genkeys'
                 ) {
-
                     if (
                         !canManageWhitelist(
                             interaction
                         )
                     ) {
-
                         await interaction.reply({
                             content:
                                 '❌ You do not have permission to generate keys.',
@@ -1174,17 +1355,15 @@ client.on(
                     }
 
                     const amount =
-                        interaction.options
-                            .getInteger(
-                                'amount',
-                                true
-                            );
+                        interaction.options.getInteger(
+                            'amount',
+                            true
+                        );
 
                     const format =
-                        interaction.options
-                            .getString(
-                                'format'
-                            ) || 'polo';
+                        interaction.options.getString(
+                            'format'
+                        ) || 'polo';
 
                     await interaction.deferReply({
                         ephemeral: true
@@ -1197,12 +1376,12 @@ client.on(
                         i < amount;
                         i++
                     ) {
-
                         const key =
-                            generateKey(format);
+                            generateKey(
+                                format
+                            );
 
                         try {
-
                             await cloudflareRequest(
                                 '/create',
                                 {
@@ -1210,10 +1389,11 @@ client.on(
                                 }
                             );
 
-                            generated.push(key);
+                            generated.push(
+                                key
+                            );
 
                         } catch (error) {
-
                             console.error(
                                 `Failed creating ${key}:`,
                                 error
@@ -1224,7 +1404,6 @@ client.on(
                     if (
                         !generated.length
                     ) {
-
                         await interaction.editReply({
                             content:
                                 '❌ Failed to create any keys. Check your Cloudflare API configuration.'
@@ -1241,33 +1420,41 @@ client.on(
                             '\n```'
                     });
 
-                    // Log key generation
                     await sendDiscordLog({
-                        title: '🔑 Keys Generated',
+                        title:
+                            '🔑 Keys Generated',
+
                         description:
                             'New license keys were generated.',
-                        color: 0x00aaff,
+
+                        color:
+                            0x00aaff,
+
                         fields: [
                             {
-                                name: 'Discord User',
+                                name:
+                                    'Discord User',
                                 value:
                                     `<@${interaction.user.id}>`,
                                 inline: true
                             },
                             {
-                                name: 'Discord ID',
+                                name:
+                                    'Discord ID',
                                 value:
                                     `\`${interaction.user.id}\``,
                                 inline: true
                             },
                             {
-                                name: 'Amount',
+                                name:
+                                    'Amount',
                                 value:
                                     `\`${generated.length}\``,
                                 inline: true
                             },
                             {
-                                name: 'Format',
+                                name:
+                                    'Format',
                                 value:
                                     `\`${format}\``,
                                 inline: true
@@ -1287,7 +1474,6 @@ client.on(
                     interaction.commandName ===
                     'obfuscate'
                 ) {
-
                     await handleObfuscate(
                         interaction
                     );
@@ -1304,13 +1490,11 @@ client.on(
                     interaction.commandName ===
                     'setstatus'
                 ) {
-
                     if (
                         !canUseRestrictedCommand(
                             interaction
                         )
                     ) {
-
                         await interaction.reply({
                             content:
                                 '❌ You do not have permission to use this command.',
@@ -1333,10 +1517,11 @@ client.on(
                         );
 
                     const until =
-                        parseUntilTime(timeStr);
+                        parseUntilTime(
+                            timeStr
+                        );
 
                     if (!until) {
-
                         await interaction.reply({
                             content:
                                 '❌ Could not parse the time. Try formats like `12am`, `00:00`, `3:30pm`, or `15:30`.',
@@ -1352,16 +1537,27 @@ client.on(
                         reason
                     );
 
-                    const readable = until.toLocaleString('en-US', {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true,
-                        month: 'short',
-                        day: 'numeric'
-                    });
+                    const readable =
+                        until.toLocaleString(
+                            'en-US',
+                            {
+                                hour:
+                                    'numeric',
+                                minute:
+                                    '2-digit',
+                                hour12:
+                                    true,
+                                month:
+                                    'short',
+                                day:
+                                    'numeric'
+                            }
+                        );
 
                     const reasonText =
-                        REASON_MESSAGES[reason] || reason;
+                        REASON_MESSAGES[
+                            reason
+                        ] || reason;
 
                     await interaction.reply({
                         content:
@@ -1375,26 +1571,25 @@ client.on(
                     return;
                 }
 
+
                 // ---------------------------------------------
                 // /apply
                 // ---------------------------------------------
 
                 if (
-                    interaction.commandName === 'apply'
+                    interaction.commandName ===
+                    'apply'
                 ) {
-
                     const role =
                         interaction.options.getString(
                             'role',
                             true
                         );
 
-                    // Only Media applications are open
                     if (
                         role === 'staff' ||
                         role === 'helper'
                     ) {
-
                         const label =
                             role.charAt(0).toUpperCase() +
                             role.slice(1);
@@ -1409,8 +1604,9 @@ client.on(
                         return;
                     }
 
-                    if (role === 'media') {
-
+                    if (
+                        role === 'media'
+                    ) {
                         const modal =
                             new ModalBuilder()
                                 .setCustomId(
@@ -1435,7 +1631,9 @@ client.on(
                                     TextInputStyle.Short
                                 )
                                 .setRequired(true)
-                                .setMaxLength(200);
+                                .setMaxLength(
+                                    200
+                                );
 
                         const platform =
                             new TextInputBuilder()
@@ -1452,7 +1650,9 @@ client.on(
                                     TextInputStyle.Short
                                 )
                                 .setRequired(true)
-                                .setMaxLength(50);
+                                .setMaxLength(
+                                    50
+                                );
 
                         const followers =
                             new TextInputBuilder()
@@ -1469,7 +1669,9 @@ client.on(
                                     TextInputStyle.Short
                                 )
                                 .setRequired(true)
-                                .setMaxLength(30);
+                                .setMaxLength(
+                                    30
+                                );
 
                         const niche =
                             new TextInputBuilder()
@@ -1486,7 +1688,9 @@ client.on(
                                     TextInputStyle.Short
                                 )
                                 .setRequired(true)
-                                .setMaxLength(100);
+                                .setMaxLength(
+                                    100
+                                );
 
                         const why =
                             new TextInputBuilder()
@@ -1503,24 +1707,35 @@ client.on(
                                     TextInputStyle.Paragraph
                                 )
                                 .setRequired(true)
-                                .setMaxLength(1000);
+                                .setMaxLength(
+                                    1000
+                                );
 
                         modal.addComponents(
-                            new ActionRowBuilder().addComponents(
-                                channelLink
-                            ),
-                            new ActionRowBuilder().addComponents(
-                                platform
-                            ),
-                            new ActionRowBuilder().addComponents(
-                                followers
-                            ),
-                            new ActionRowBuilder().addComponents(
-                                niche
-                            ),
-                            new ActionRowBuilder().addComponents(
-                                why
-                            )
+                            new ActionRowBuilder()
+                                .addComponents(
+                                    channelLink
+                                ),
+
+                            new ActionRowBuilder()
+                                .addComponents(
+                                    platform
+                                ),
+
+                            new ActionRowBuilder()
+                                .addComponents(
+                                    followers
+                                ),
+
+                            new ActionRowBuilder()
+                                .addComponents(
+                                    niche
+                                ),
+
+                            new ActionRowBuilder()
+                                .addComponents(
+                                    why
+                                )
                         );
 
                         await interaction.showModal(
@@ -1530,7 +1745,6 @@ client.on(
                         return;
                     }
                 }
-
             }
 
 
@@ -1543,14 +1757,13 @@ client.on(
             ) {
 
                 // ---------------------------------------------
-                // Redeem button
+                // Redeem
                 // ---------------------------------------------
 
                 if (
                     interaction.customId ===
                     'polo_redeem'
                 ) {
-
                     const modal =
                         new ModalBuilder()
                             .setCustomId(
@@ -1589,21 +1802,19 @@ client.on(
 
 
                 // ---------------------------------------------
-                // Reset
+                // RESET HWID / ROBLOX
                 // ---------------------------------------------
 
                 if (
                     interaction.customId ===
                     'polo_reset'
                 ) {
-
                     if (
                         typeof useReset !==
-                            'function' ||
+                        'function' ||
                         typeof getRemaining !==
-                            'function'
+                        'function'
                     ) {
-
                         await interaction.reply({
                             content:
                                 '❌ Reset system is not configured correctly.',
@@ -1622,30 +1833,225 @@ client.on(
                         config.resetLimit ||
                         DEFAULT_MAX_RESETS;
 
-                    const {
-                        success,
-                        remaining
-                    } =
-                        useReset(
+                    const resetsLeft =
+                        getRemaining(
                             interaction.guildId,
                             interaction.user.id,
                             maxResets
                         );
 
-                    if (success) {
-
-                        await interaction.reply({
-                            content:
-                                `🔄 Reset complete.\nYou have **${remaining}/${maxResets}** resets left.`,
-                            ephemeral: true
-                        });
-
-                    } else {
-
+                    if (
+                        resetsLeft <= 0
+                    ) {
                         await interaction.reply({
                             content:
                                 `❌ You've used all **${maxResets}** resets.`,
                             ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    await interaction.deferReply({
+                        ephemeral: true
+                    });
+
+                    try {
+
+                        // -------------------------------------
+                        // Find the user's license
+                        // -------------------------------------
+
+                        const licenseInfo =
+                            await cloudflareRequest(
+                                '/status',
+                                {
+                                    discordId:
+                                        interaction.user.id
+                                }
+                            );
+
+                        if (
+                            !licenseInfo.license
+                        ) {
+                            await interaction.editReply({
+                                content:
+                                    '❌ You do not have a redeemed license linked to this Discord account.'
+                            });
+
+                            return;
+                        }
+
+                        const license =
+                            licenseInfo.license;
+
+                        // -------------------------------------
+                        // Reset Roblox binding
+                        // -------------------------------------
+
+                        await cloudflareRequest(
+                            '/reset-roblox',
+                            {
+                                key:
+                                    license.key,
+                                discordId:
+                                    interaction.user.id
+                            }
+                        );
+
+                        // -------------------------------------
+                        // ONLY consume reset AFTER API success
+                        // -------------------------------------
+
+                        const consumed =
+                            useReset(
+                                interaction.guildId,
+                                interaction.user.id,
+                                maxResets
+                            );
+
+                        if (
+                            !consumed.success
+                        ) {
+                            await interaction.editReply({
+                                content:
+                                    '⚠️ Roblox binding was reset, but your local reset counter could not be updated. Please contact an administrator.'
+                            });
+
+                            return;
+                        }
+
+                        await interaction.editReply({
+                            content:
+                                `🔄 **Roblox account reset successfully!**\n\n` +
+                                `Your key can now be activated on another Roblox account.\n\n` +
+                                `🔄 Resets remaining: **${consumed.remaining}/${maxResets}**`
+                        });
+
+                        await sendDiscordLog({
+                            title:
+                                '🔄 Roblox HWID Reset',
+
+                            description:
+                                'A user successfully reset their Roblox account binding.',
+
+                            color:
+                                0x00aaff,
+
+                            fields: [
+                                {
+                                    name:
+                                        'Discord User',
+                                    value:
+                                        `<@${interaction.user.id}>`,
+                                    inline: true
+                                },
+                                {
+                                    name:
+                                        'Discord ID',
+                                    value:
+                                        `\`${interaction.user.id}\``,
+                                    inline: true
+                                },
+                                {
+                                    name:
+                                        'Key',
+                                    value:
+                                        `\`${license.key}\``,
+                                    inline: false
+                                },
+                                {
+                                    name:
+                                        'Resets Remaining',
+                                    value:
+                                        `\`${consumed.remaining}/${maxResets}\``,
+                                    inline: true
+                                }
+                            ]
+                        });
+
+                    } catch (error) {
+
+                        console.error(
+                            'Roblox reset error:',
+                            error
+                        );
+
+                        await sendDiscordLog({
+                            title:
+                                '❌ Roblox Reset Failed',
+
+                            description:
+                                'A Roblox HWID reset attempt failed.',
+
+                            color:
+                                0xff3333,
+
+                            fields: [
+                                {
+                                    name:
+                                        'Discord User',
+                                    value:
+                                        `<@${interaction.user.id}>`,
+                                    inline: true
+                                },
+                                {
+                                    name:
+                                        'Discord ID',
+                                    value:
+                                        `\`${interaction.user.id}\``,
+                                    inline: true
+                                },
+                                {
+                                    name:
+                                        'HTTP Status',
+                                    value:
+                                        `\`${error.status || 'Unknown'}\``,
+                                    inline: true
+                                },
+                                {
+                                    name:
+                                        'Error',
+                                    value:
+                                        `\`${String(
+                                            error.message ||
+                                            'Unknown error'
+                                        ).slice(0, 900)}\``,
+                                    inline: false
+                                }
+                            ]
+                        });
+
+                        if (
+                            error.status ===
+                            404
+                        ) {
+                            await interaction.editReply({
+                                content:
+                                    '❌ No license was found for your Discord account.'
+                            });
+
+                            return;
+                        }
+
+                        if (
+                            error.status ===
+                            403
+                        ) {
+                            await interaction.editReply({
+                                content:
+                                    `❌ ${
+                                        error.message ||
+                                        'You are not authorized to reset this license.'
+                                    }`
+                            });
+
+                            return;
+                        }
+
+                        await interaction.editReply({
+                            content:
+                                '❌ Could not reset your Roblox account. Your reset was **not consumed**. Please try again later.'
                         });
                     }
 
@@ -1654,13 +2060,16 @@ client.on(
 
 
                 // ---------------------------------------------
-                // Status
+                // STATUS
                 // ---------------------------------------------
 
                 if (
                     interaction.customId ===
                     'polo_status'
                 ) {
+                    await interaction.deferReply({
+                        ephemeral: true
+                    });
 
                     const config =
                         getGuildConfig(
@@ -1678,7 +2087,6 @@ client.on(
                         typeof getRemaining ===
                         'function'
                     ) {
-
                         resetsLeft =
                             getRemaining(
                                 interaction.guildId,
@@ -1687,46 +2095,161 @@ client.on(
                             );
                     }
 
-                    if (
-                        !config.premiumRoleId
-                    ) {
+                    try {
 
-                        await interaction.reply({
-                            content:
-                                `📊 **Status:** Premium role has not been configured.\n` +
-                                `🔄 Resets remaining: **${resetsLeft}/${maxResets}**`,
-                            ephemeral: true
+                        const status =
+                            await cloudflareRequest(
+                                '/status',
+                                {
+                                    discordId:
+                                        interaction.user.id
+                                }
+                            );
+
+                        if (
+                            !status.license
+                        ) {
+                            await interaction.editReply({
+                                content:
+                                    `📊 **Polo Account Status**\n\n` +
+                                    `🔑 License: **Not linked**\n` +
+                                    `🔄 Resets: **${resetsLeft}/${maxResets}**`
+                            });
+
+                            return;
+                        }
+
+                        const license =
+                            status.license;
+
+                        const discordLinked =
+                            license.discordId
+                                ? '✅ Linked'
+                                : '❌ Not linked';
+
+                        const robloxLinked =
+                            license.robloxUserId
+                                ? `✅ Linked (\`${license.robloxUserId}\`)`
+                                : '⚪ Not linked';
+
+                        const createdAt =
+                            license.createdAt
+                                ? `<t:${Math.floor(new Date(license.createdAt).getTime() / 1000)}:R>`
+                                : 'Unknown';
+
+                        const redeemedAt =
+                            license.redeemedAt
+                                ? `<t:${Math.floor(new Date(license.redeemedAt).getTime() / 1000)}:R>`
+                                : 'Unknown';
+
+                        const activatedAt =
+                            license.activatedAt
+                                ? `<t:${Math.floor(new Date(license.activatedAt).getTime() / 1000)}:R>`
+                                : 'Not activated';
+
+                        const embed =
+                            new EmbedBuilder()
+                                .setColor(
+                                    license.status === 'redeemed'
+                                        ? 0x00ff88
+                                        : 0xff3333
+                                )
+                                .setTitle(
+                                    '📊 Polo Account Status'
+                                )
+                                .addFields(
+                                    {
+                                        name:
+                                            '🔑 License',
+                                        value:
+                                            `\`${license.key}\``,
+                                        inline: false
+                                    },
+                                    {
+                                        name:
+                                            '📌 Status',
+                                        value:
+                                            license.status ||
+                                            'Unknown',
+                                        inline: true
+                                    },
+                                    {
+                                        name:
+                                            '💎 Discord',
+                                        value:
+                                            discordLinked,
+                                        inline: true
+                                    },
+                                    {
+                                        name:
+                                            '🎮 Roblox',
+                                        value:
+                                            robloxLinked,
+                                        inline: true
+                                    },
+                                    {
+                                        name:
+                                            '🔄 Resets',
+                                        value:
+                                            `**${resetsLeft}/${maxResets}**`,
+                                        inline: true
+                                    },
+                                    {
+                                        name:
+                                            '📅 Created',
+                                        value:
+                                            createdAt,
+                                        inline: true
+                                    },
+                                    {
+                                        name:
+                                            '🔑 Redeemed',
+                                        value:
+                                            redeemedAt,
+                                        inline: true
+                                    },
+                                    {
+                                        name:
+                                            '🎮 Activated',
+                                        value:
+                                            activatedAt,
+                                        inline: true
+                                    }
+                                )
+                                .setFooter({
+                                    text:
+                                        'Polo License System'
+                                })
+                                .setTimestamp();
+
+                        await interaction.editReply({
+                            embeds: [
+                                embed
+                            ]
                         });
 
-                        return;
+                    } catch (error) {
+
+                        console.error(
+                            'Status error:',
+                            error
+                        );
+
+                        await interaction.editReply({
+                            content:
+                                '❌ Could not retrieve your license status. Please try again later.'
+                        });
                     }
-
-                    const member =
-                        interaction.member;
-
-                    const isPremium =
-                        member?.roles?.cache?.has(
-                            config.premiumRoleId
-                        ) ?? false;
-
-                    await interaction.reply({
-                        content:
-                            isPremium
-                                ? `📊 **Status:** 💎 Premium\n🔄 Resets remaining: **${resetsLeft}/${maxResets}**`
-                                : `📊 **Status:** Not Premium\n🔄 Resets remaining: **${resetsLeft}/${maxResets}**`,
-                        ephemeral: true
-                    });
 
                     return;
                 }
 
 
                 // ---------------------------------------------
-                // Other buttons
+                // OTHER BUTTONS
                 // ---------------------------------------------
 
                 const replies = {
-
                     polo_get:
                         '📄 No link has been set for **Get Script** yet.',
 
@@ -1749,7 +2272,6 @@ client.on(
                     ];
 
                 if (content) {
-
                     await interaction.reply({
                         content,
                         ephemeral: true
@@ -1758,7 +2280,6 @@ client.on(
 
                 return;
             }
-
 
 
             // =================================================
@@ -1810,24 +2331,16 @@ client.on(
                     process.env.APPLICATIONS_CHANNEL_ID ||
                     '1545903366213869651';
 
-                if (!appsChannelId) {
-
-                    await interaction.reply({
-                        content:
-                            '❌ Applications channel is not configured. Please contact an admin.',
-                        ephemeral: true
-                    });
-
-                    return;
-                }
-
                 const appsChannel =
                     await interaction.client.channels
-                        .fetch(appsChannelId)
-                        .catch(() => null);
+                        .fetch(
+                            appsChannelId
+                        )
+                        .catch(
+                            () => null
+                        );
 
                 if (!appsChannel) {
-
                     await interaction.reply({
                         content:
                             '❌ Could not find the applications channel. Please contact an admin.',
@@ -1842,46 +2355,58 @@ client.on(
                         .setTitle(
                             '📺 New Media Application'
                         )
-                        .setColor(0x5865f2)
+                        .setColor(
+                            0x5865f2
+                        )
                         .setAuthor({
-                            name: interaction.user.tag,
+                            name:
+                                interaction.user.tag,
                             iconURL:
-                                interaction.user.displayAvatarURL(
-                                    {
-                                        dynamic: true
-                                    }
-                                )
+                                interaction.user.displayAvatarURL({
+                                    dynamic: true
+                                })
                         })
                         .addFields(
                             {
-                                name: 'Applicant',
+                                name:
+                                    'Applicant',
                                 value:
                                     `${interaction.user} (\`${interaction.user.id}\`)`,
                                 inline: false
                             },
                             {
-                                name: 'Channel / Link',
-                                value: channelLink,
+                                name:
+                                    'Channel / Link',
+                                value:
+                                    channelLink,
                                 inline: false
                             },
                             {
-                                name: 'Platform',
-                                value: platform,
+                                name:
+                                    'Platform',
+                                value:
+                                    platform,
                                 inline: true
                             },
                             {
-                                name: 'Followers',
-                                value: followers,
+                                name:
+                                    'Followers',
+                                value:
+                                    followers,
                                 inline: true
                             },
                             {
-                                name: 'Niche',
-                                value: niche,
+                                name:
+                                    'Niche',
+                                value:
+                                    niche,
                                 inline: true
                             },
                             {
-                                name: 'Why they want Media',
-                                value: why,
+                                name:
+                                    'Why they want Media',
+                                value:
+                                    why,
                                 inline: false
                             }
                         )
@@ -1892,7 +2417,9 @@ client.on(
                         });
 
                 await appsChannel.send({
-                    embeds: [embed]
+                    embeds: [
+                        embed
+                    ]
                 });
 
                 await interaction.reply({
@@ -1923,7 +2450,6 @@ client.on(
                         .trim();
 
                 if (!inputKey) {
-
                     await interaction.reply({
                         content:
                             '❌ Please enter a key.',
@@ -1937,27 +2463,18 @@ client.on(
                     ephemeral: true
                 });
 
-
                 try {
-
-                    // -----------------------------------------
-                    // Redeem key through Cloudflare
-                    // -----------------------------------------
 
                     const result =
                         await cloudflareRequest(
                             '/redeem',
                             {
-                                key: inputKey,
+                                key:
+                                    inputKey,
                                 discordId:
                                     interaction.user.id
                             }
                         );
-
-
-                    // -----------------------------------------
-                    // Key already belongs to this user
-                    // -----------------------------------------
 
                     if (
                         result.alreadyRedeemed
@@ -1995,14 +2512,16 @@ client.on(
                             });
                         }
 
-
-                        // Log already redeemed key
                         await sendDiscordLog({
                             title:
                                 'ℹ️ Key Already Redeemed',
+
                             description:
                                 'A user attempted to redeem a key already linked to their Discord account.',
-                            color: 0xffcc00,
+
+                            color:
+                                0xffcc00,
+
                             fields: [
                                 {
                                     name:
@@ -2039,10 +2558,6 @@ client.on(
                     }
 
 
-                    // -----------------------------------------
-                    // Successful first redemption
-                    // -----------------------------------------
-
                     const roleId =
                         process.env.PREMIUM_ROLE_ID ||
                         getGuildConfig(
@@ -2050,7 +2565,8 @@ client.on(
                         )?.premiumRoleId ||
                         '1409762874754203742';
 
-                    let roleGiven = false;
+                    let roleGiven =
+                        false;
 
                     try {
 
@@ -2058,7 +2574,8 @@ client.on(
                             roleId
                         );
 
-                        roleGiven = true;
+                        roleGiven =
+                            true;
 
                         await interaction.editReply({
                             content:
@@ -2082,18 +2599,16 @@ client.on(
                         });
                     }
 
-
-                    // -----------------------------------------
-                    // Webhook log
-                    // -----------------------------------------
-
                     await sendDiscordLog({
                         title:
                             '🔑 License Redeemed',
+
                         description:
                             'A license key has been successfully redeemed through Discord.',
+
                         color:
                             0x00ff88,
+
                         fields: [
                             {
                                 name:
@@ -2149,18 +2664,16 @@ client.on(
                         error
                     );
 
-
-                    // -----------------------------------------
-                    // Log failed redemption
-                    // -----------------------------------------
-
                     await sendDiscordLog({
                         title:
                             '❌ License Redemption Failed',
+
                         description:
                             'A license redemption attempt failed.',
+
                         color:
                             0xff3333,
+
                         fields: [
                             {
                                 name:
@@ -2203,15 +2716,10 @@ client.on(
                         ]
                     });
 
-
-                    // -----------------------------------------
-                    // Specific Cloudflare errors
-                    // -----------------------------------------
-
                     if (
-                        error.status === 409
+                        error.status ===
+                        409
                     ) {
-
                         await interaction.editReply({
                             content:
                                 '❌ That key has already been redeemed by another Discord account.'
@@ -2221,9 +2729,9 @@ client.on(
                     }
 
                     if (
-                        error.status === 403
+                        error.status ===
+                        403
                     ) {
-
                         await interaction.editReply({
                             content:
                                 `❌ ${
@@ -2256,7 +2764,6 @@ client.on(
                 if (
                     interaction.deferred
                 ) {
-
                     await interaction.editReply({
                         content:
                             '❌ An error occurred while processing this interaction.'
@@ -2265,7 +2772,6 @@ client.on(
                 } else if (
                     !interaction.replied
                 ) {
-
                     await interaction.reply({
                         content:
                             '❌ An internal error occurred. Check the bot console.',
@@ -2292,7 +2798,6 @@ client.on(
 async function handleObfuscate(
     interaction
 ) {
-
     const attachment =
         interaction.options.getAttachment(
             'file'
@@ -2304,7 +2809,6 @@ async function handleObfuscate(
         ) || 'advanced';
 
     if (!attachment) {
-
         await interaction.reply({
             content:
                 '❌ Please upload a Lua file.',
@@ -2320,7 +2824,6 @@ async function handleObfuscate(
             .toLowerCase()
             .endsWith('.lua')
     ) {
-
         await interaction.reply({
             content:
                 '❌ Please upload a `.lua` file.',
@@ -2334,7 +2837,6 @@ async function handleObfuscate(
         attachment.size >
         500 * 1024
     ) {
-
         await interaction.reply({
             content:
                 '❌ File is too large. Maximum size is **500 KB**.',
@@ -2373,11 +2875,14 @@ async function handleObfuscate(
                             'application/json'
                     },
 
-                    body: JSON.stringify({
-                        source,
-                        tier: preset,
-                        banner: false
-                    })
+                    body:
+                        JSON.stringify({
+                            source,
+                            tier:
+                                preset,
+                            banner:
+                                false
+                        })
                 }
             );
 
@@ -2415,7 +2920,6 @@ async function handleObfuscate(
             typeof obfuscated !==
                 'string'
         ) {
-
             throw new Error(
                 'API did not return obfuscated code'
             );
@@ -2428,9 +2932,10 @@ async function handleObfuscate(
             );
 
         if (
-            !fs.existsSync(tempDir)
+            !fs.existsSync(
+                tempDir
+            )
         ) {
-
             fs.mkdirSync(
                 tempDir,
                 {
@@ -2458,13 +2963,16 @@ async function handleObfuscate(
             new AttachmentBuilder(
                 outPath,
                 {
-                    name: outName
+                    name:
+                        outName
                 }
             );
 
         const embed =
             new EmbedBuilder()
-                .setColor(0x00ff88)
+                .setColor(
+                    0x00ff88
+                )
                 .setTitle(
                     '🔒 Lua Obfuscated'
                 )
@@ -2476,28 +2984,27 @@ async function handleObfuscate(
                 .setTimestamp();
 
         await interaction.editReply({
-            embeds: [embed],
-            files: [file]
+            embeds: [
+                embed
+            ],
+            files: [
+                file
+            ]
         });
 
         setTimeout(
             () => {
-
                 try {
-
                     if (
                         fs.existsSync(
                             outPath
                         )
                     ) {
-
                         fs.unlinkSync(
                             outPath
                         );
                     }
-
                 } catch {}
-
             },
             15000
         );
@@ -2523,12 +3030,13 @@ async function handleObfuscate(
 
 client.login(
     process.env.DISCORD_TOKEN
-).catch(err => {
+).catch(
+    err => {
+        console.error(
+            'Failed to log in to Discord:',
+            err
+        );
 
-    console.error(
-        'Failed to log in to Discord:',
-        err
-    );
-
-    process.exit(1);
-});
+        process.exit(1);
+    }
+);
