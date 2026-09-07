@@ -479,21 +479,58 @@ async function registerCommands() {
             process.env.DISCORD_TOKEN
         );
 
+    /*
+     * IMPORTANT:
+     *
+     * Remove duplicate command definitions before sending
+     * them to Discord.
+     *
+     * Discord uses the command name as the unique identifier.
+     * If commandDefs accidentally contains the same command
+     * more than once, only the last copy will be registered.
+     */
+    const uniqueCommands =
+        Array.from(
+            new Map(
+                commandDefs.map(
+                    command => [
+                        command.name,
+                        command
+                    ]
+                )
+            ).values()
+        );
+
+    console.log(
+        `Registering ${uniqueCommands.length} unique slash commands...`
+    );
+
     try {
+
+        /*
+         * PUT replaces the complete global command set.
+         *
+         * This means old/duplicated commands are removed
+         * instead of another copy being added.
+         */
         await rest.put(
             Routes.applicationCommands(
                 process.env.CLIENT_ID
             ),
             {
                 body:
-                    commandDefs
+                    uniqueCommands
             }
         );
 
         console.log(
-            'Global slash commands registered (work in DMs + all servers).'
+            'Global slash commands registered successfully.'
         );
 
+        /*
+         * Guild commands are also replaced completely.
+         * This prevents old duplicated guild commands.
+         */
         if (
             process.env.GUILD_ID
         ) {
@@ -504,12 +541,12 @@ async function registerCommands() {
                 ),
                 {
                     body:
-                        commandDefs
+                        uniqueCommands
                 }
             );
 
             console.log(
-                'Guild slash commands registered (instant in server).'
+                `Guild slash commands registered successfully for ${process.env.GUILD_ID}.`
             );
         }
 
@@ -1185,6 +1222,20 @@ client.on(
                     interaction.commandName ===
                     'setlink'
                 ) {
+                    if (
+                        !canUseRestrictedCommand(
+                            interaction
+                        )
+                    ) {
+                        await interaction.reply({
+                            content:
+                                '❌ You do not have permission to use this command.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
                     const button =
                         interaction.options.getString(
                             'button',
@@ -1230,6 +1281,20 @@ client.on(
                     interaction.commandName ===
                     'setpremiumrole'
                 ) {
+                    if (
+                        !canUseRestrictedCommand(
+                            interaction
+                        )
+                    ) {
+                        await interaction.reply({
+                            content:
+                                '❌ You do not have permission to use this command.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
                     const role =
                         interaction.options.getRole(
                             'role',
@@ -1259,6 +1324,20 @@ client.on(
                     interaction.commandName ===
                     'setresetlimit'
                 ) {
+                    if (
+                        !canUseRestrictedCommand(
+                            interaction
+                        )
+                    ) {
+                        await interaction.reply({
+                            content:
+                                '❌ You do not have permission to use this command.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
                     const amount =
                         interaction.options.getInteger(
                             'amount',
@@ -1288,6 +1367,20 @@ client.on(
                     interaction.commandName ===
                     'resethwidresets'
                 ) {
+                    if (
+                        !canUseRestrictedCommand(
+                            interaction
+                        )
+                    ) {
+                        await interaction.reply({
+                            content:
+                                '❌ You do not have permission to use this command.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
                     if (
                         typeof resetUser !==
                         'function'
@@ -1327,6 +1420,328 @@ client.on(
                             `They now have **${maxResets}/${maxResets}** available.`,
                         ephemeral: true
                     });
+
+                    return;
+                }
+
+
+                // =================================================
+                // /disable
+                // =================================================
+
+                if (
+                    interaction.commandName ===
+                    'disable'
+                ) {
+                    if (
+                        !canManageWhitelist(
+                            interaction
+                        )
+                    ) {
+                        await interaction.reply({
+                            content:
+                                '❌ You do not have permission to disable licenses.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    const key =
+                        interaction.options.getString(
+                            'key',
+                            true
+                        ).trim();
+
+                    await interaction.deferReply({
+                        ephemeral: true
+                    });
+
+                    try {
+                        const result =
+                            await cloudflareRequest(
+                                '/disable',
+                                {
+                                    key
+                                }
+                            );
+
+                        await interaction.editReply({
+                            content:
+                                `🔒 **License disabled successfully.**\n\n` +
+                                `🔑 Key: \`${key}\`\n` +
+                                `📌 Status: **${result.status || 'disabled'}**`
+                        });
+
+                        await sendDiscordLog({
+                            title:
+                                '🔒 License Disabled',
+
+                            description:
+                                'A license key was disabled.',
+
+                            color:
+                                0xffaa00,
+
+                            fields: [
+                                {
+                                    name:
+                                        'Admin',
+                                    value:
+                                        `<@${interaction.user.id}>`,
+                                    inline: true
+                                },
+                                {
+                                    name:
+                                        'Discord ID',
+                                    value:
+                                        `\`${interaction.user.id}\``,
+                                    inline: true
+                                },
+                                {
+                                    name:
+                                        'Key',
+                                    value:
+                                        `\`${key}\``,
+                                    inline: false
+                                }
+                            ]
+                        });
+
+                    } catch (error) {
+                        console.error(
+                            'Disable license error:',
+                            error
+                        );
+
+                        await interaction.editReply({
+                            content:
+                                `❌ Failed to disable license.\n\n` +
+                                `**${error.message || 'Unknown error'}**`
+                        });
+                    }
+
+                    return;
+                }
+
+
+                // =================================================
+                // /enable
+                // =================================================
+
+                if (
+                    interaction.commandName ===
+                    'enable'
+                ) {
+                    if (
+                        !canManageWhitelist(
+                            interaction
+                        )
+                    ) {
+                        await interaction.reply({
+                            content:
+                                '❌ You do not have permission to enable licenses.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    const key =
+                        interaction.options.getString(
+                            'key',
+                            true
+                        ).trim();
+
+                    await interaction.deferReply({
+                        ephemeral: true
+                    });
+
+                    try {
+                        const result =
+                            await cloudflareRequest(
+                                '/enable',
+                                {
+                                    key
+                                }
+                            );
+
+                        await interaction.editReply({
+                            content:
+                                `🔓 **License enabled successfully.**\n\n` +
+                                `🔑 Key: \`${key}\`\n` +
+                                `📌 Status: **${result.status || 'enabled'}**\n` +
+                                `🎮 Roblox binding has been cleared.`
+                        });
+
+                        await sendDiscordLog({
+                            title:
+                                '🔓 License Enabled',
+
+                            description:
+                                'A disabled license key was enabled.',
+
+                            color:
+                                0x00ff88,
+
+                            fields: [
+                                {
+                                    name:
+                                        'Admin',
+                                    value:
+                                        `<@${interaction.user.id}>`,
+                                    inline: true
+                                },
+                                {
+                                    name:
+                                        'Discord ID',
+                                    value:
+                                        `\`${interaction.user.id}\``,
+                                    inline: true
+                                },
+                                {
+                                    name:
+                                        'Key',
+                                    value:
+                                        `\`${key}\``,
+                                    inline: false
+                                }
+                            ]
+                        });
+
+                    } catch (error) {
+                        console.error(
+                            'Enable license error:',
+                            error
+                        );
+
+                        await interaction.editReply({
+                            content:
+                                `❌ Failed to enable license.\n\n` +
+                                `**${error.message || 'Unknown error'}**`
+                        });
+                    }
+
+                    return;
+                }
+
+
+                // =================================================
+                // /blacklist
+                // =================================================
+
+                if (
+                    interaction.commandName ===
+                    'blacklist'
+                ) {
+                    if (
+                        !canManageWhitelist(
+                            interaction
+                        )
+                    ) {
+                        await interaction.reply({
+                            content:
+                                '❌ You do not have permission to blacklist licenses.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    const key =
+                        interaction.options.getString(
+                            'key',
+                            true
+                        ).trim();
+
+                    const reason =
+                        interaction.options.getString(
+                            'reason'
+                        )?.trim() ||
+                        'No reason provided';
+
+                    await interaction.deferReply({
+                        ephemeral: true
+                    });
+
+                    try {
+                        const result =
+                            await cloudflareRequest(
+                                '/blacklist',
+                                {
+                                    key,
+                                    reason,
+                                    blacklistedBy:
+                                        interaction.user.id
+                                }
+                            );
+
+                        await interaction.editReply({
+                            content:
+                                `🚫 **License permanently blacklisted.**\n\n` +
+                                `🔑 Key: \`${key}\`\n` +
+                                `📝 Reason: **${reason}**\n` +
+                                `📌 Status: **${result.status || 'blacklisted'}**\n\n` +
+                                `This license can no longer be enabled.`
+                        });
+
+                        await sendDiscordLog({
+                            title:
+                                '🚫 License Blacklisted',
+
+                            description:
+                                'A license key was permanently blacklisted.',
+
+                            color:
+                                0xff0000,
+
+                            fields: [
+                                {
+                                    name:
+                                        'Admin',
+                                    value:
+                                        `<@${interaction.user.id}>`,
+                                    inline: true
+                                },
+                                {
+                                    name:
+                                        'Discord ID',
+                                    value:
+                                        `\`${interaction.user.id}\``,
+                                    inline: true
+                                },
+                                {
+                                    name:
+                                        'Key',
+                                    value:
+                                        `\`${key}\``,
+                                    inline: false
+                                },
+                                {
+                                    name:
+                                        'Reason',
+                                    value:
+                                        reason.slice(
+                                            0,
+                                            1024
+                                        ),
+                                    inline: false
+                                }
+                            ]
+                        });
+
+                    } catch (error) {
+                        console.error(
+                            'Blacklist license error:',
+                            error
+                        );
+
+                        await interaction.editReply({
+                            content:
+                                `❌ Failed to blacklist license.\n\n` +
+                                `**${error.message || 'Unknown error'}**`
+                        });
+                    }
 
                     return;
                 }
@@ -1858,10 +2273,6 @@ client.on(
 
                     try {
 
-                        // -------------------------------------
-                        // Find the user's license
-                        // -------------------------------------
-
                         const licenseInfo =
                             await cloudflareRequest(
                                 '/status',
@@ -1885,10 +2296,6 @@ client.on(
                         const license =
                             licenseInfo.license;
 
-                        // -------------------------------------
-                        // Reset Roblox binding
-                        // -------------------------------------
-
                         await cloudflareRequest(
                             '/reset-roblox',
                             {
@@ -1898,10 +2305,6 @@ client.on(
                                     interaction.user.id
                             }
                         );
-
-                        // -------------------------------------
-                        // ONLY consume reset AFTER API success
-                        // -------------------------------------
 
                         const consumed =
                             useReset(
@@ -2147,12 +2550,48 @@ client.on(
                                 ? `<t:${Math.floor(new Date(license.activatedAt).getTime() / 1000)}:R>`
                                 : 'Not activated';
 
+                        let statusEmoji = '📌';
+
+                        if (
+                            license.status ===
+                            'activated'
+                        ) {
+                            statusEmoji = '🟢';
+                        } else if (
+                            license.status ===
+                            'discord_redeemed'
+                        ) {
+                            statusEmoji = '🟡';
+                        } else if (
+                            license.status ===
+                            'disabled'
+                        ) {
+                            statusEmoji = '🔴';
+                        } else if (
+                            license.status ===
+                            'blacklisted'
+                        ) {
+                            statusEmoji = '🚫';
+                        } else if (
+                            license.status ===
+                            'active'
+                        ) {
+                            statusEmoji = '⚪';
+                        }
+
                         const embed =
                             new EmbedBuilder()
                                 .setColor(
-                                    license.status === 'redeemed'
+                                    license.status ===
+                                    'activated'
                                         ? 0x00ff88
-                                        : 0xff3333
+                                        : license.status ===
+                                          'blacklisted'
+                                            ? 0xff0000
+                                            : license.status ===
+                                              'disabled'
+                                                ? 0xffaa00
+                                                : 0xab0000
                                 )
                                 .setTitle(
                                     '📊 Polo Account Status'
@@ -2167,7 +2606,7 @@ client.on(
                                     },
                                     {
                                         name:
-                                            '📌 Status',
+                                            `${statusEmoji} Status`,
                                         value:
                                             license.status ||
                                             'Unknown',
@@ -2221,6 +2660,23 @@ client.on(
                                         'Polo License System'
                                 })
                                 .setTimestamp();
+
+                        if (
+                            license.blacklistReason
+                        ) {
+                            embed.addFields({
+                                name:
+                                    '🚫 Blacklist Reason',
+                                value:
+                                    String(
+                                        license.blacklistReason
+                                    ).slice(
+                                        0,
+                                        1024
+                                    ),
+                                inline: false
+                            });
+                        }
 
                         await interaction.editReply({
                             embeds: [
