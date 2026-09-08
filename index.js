@@ -2702,6 +2702,180 @@ client.on(
 
 
                 // ---------------------------------------------
+                // APPLICATION ACCEPT / DECLINE
+                // ---------------------------------------------
+
+                if (
+                    interaction.customId.startsWith(
+                        'app_accept_'
+                    ) ||
+                    interaction.customId.startsWith(
+                        'app_decline_'
+                    )
+                ) {
+                    // Only staff / admins / owners can review
+                    if (
+                        !interaction.memberPermissions?.has(
+                            'ManageGuild'
+                        ) &&
+                        !interaction.memberPermissions?.has(
+                            'Administrator'
+                        ) &&
+                        !getOwnerIds().includes(
+                            interaction.user.id
+                        )
+                    ) {
+                        await interaction.reply({
+                            content:
+                                '❌ You do not have permission to review applications.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    const isAccept =
+                        interaction.customId.startsWith(
+                            'app_accept_'
+                        );
+
+                    const applicantId =
+                        interaction.customId
+                            .split('_')
+                            .pop();
+
+                    // Optional: give Media role on accept
+                    // Set MEDIA_ROLE_ID in your .env / Railway variables
+                    const MEDIA_ROLE_ID =
+                        process.env.MEDIA_ROLE_ID ||
+                        '';
+
+                    let roleNote = '';
+
+                    if (
+                        isAccept &&
+                        MEDIA_ROLE_ID
+                    ) {
+                        try {
+                            const member =
+                                await interaction.guild.members
+                                    .fetch(
+                                        applicantId
+                                    )
+                                    .catch(
+                                        () => null
+                                    );
+
+                            if (member) {
+                                await member.roles.add(
+                                    MEDIA_ROLE_ID
+                                );
+
+                                roleNote =
+                                    `\nRole <@&${MEDIA_ROLE_ID}> has been given.`;
+                            } else {
+                                roleNote =
+                                    '\n⚠️ Could not find the user in this server to give the role.';
+                            }
+                        } catch (err) {
+                            console.error(
+                                'Failed to give Media role:',
+                                err
+                            );
+
+                            roleNote =
+                                '\n⚠️ Failed to give the Media role (check bot permissions / role hierarchy).';
+                        }
+                    }
+
+                    // Update the original embed
+                    const originalEmbed =
+                        interaction.message
+                            .embeds[0];
+
+                    const updatedEmbed =
+                        EmbedBuilder.from(
+                            originalEmbed
+                        )
+                            .setColor(
+                                isAccept
+                                    ? 0x57f287
+                                    : 0xed4245
+                            )
+                            .setTitle(
+                                isAccept
+                                    ? '✅ Media Application — Accepted'
+                                    : '❌ Media Application — Declined'
+                            )
+                            .addFields({
+                                name: 'Reviewed by',
+                                value: `${interaction.user} (\`${interaction.user.id}\`)`,
+                                inline: false
+                            });
+
+                    // Disable the buttons
+                    const disabledRow =
+                        new ActionRowBuilder().addComponents(
+                            new ButtonBuilder()
+                                .setCustomId(
+                                    'app_accept_done'
+                                )
+                                .setLabel(
+                                    'Accept'
+                                )
+                                .setStyle(
+                                    ButtonStyle.Success
+                                )
+                                .setEmoji('✅')
+                                .setDisabled(
+                                    true
+                                ),
+                            new ButtonBuilder()
+                                .setCustomId(
+                                    'app_decline_done'
+                                )
+                                .setLabel(
+                                    'Decline'
+                                )
+                                .setStyle(
+                                    ButtonStyle.Danger
+                                )
+                                .setEmoji('❌')
+                                .setDisabled(
+                                    true
+                                )
+                        );
+
+                    await interaction.update({
+                        embeds: [
+                            updatedEmbed
+                        ],
+                        components: [
+                            disabledRow
+                        ]
+                    });
+
+                    // Try to DM the applicant
+                    try {
+                        const applicant =
+                            await interaction.client.users.fetch(
+                                applicantId
+                            );
+
+                        await applicant.send({
+                            content: isAccept
+                                ? `🎉 Your **Media** application has been **accepted**!${roleNote}`
+                                : `❌ Your **Media** application has been **declined**.`
+                        });
+                    } catch {
+                        // User has DMs closed — ignore
+                    }
+
+                    return;
+                }
+
+
+                // ---------------------------------------------
                 // OTHER BUTTONS
                 // ---------------------------------------------
 
@@ -2872,9 +3046,29 @@ client.on(
                                 `User ID: ${interaction.user.id}`
                         });
 
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(
+                            `app_accept_${interaction.user.id}`
+                        )
+                        .setLabel('Accept')
+                        .setStyle(ButtonStyle.Success)
+                        .setEmoji('✅'),
+                    new ButtonBuilder()
+                        .setCustomId(
+                            `app_decline_${interaction.user.id}`
+                        )
+                        .setLabel('Decline')
+                        .setStyle(ButtonStyle.Danger)
+                        .setEmoji('❌')
+                );
+
                 await appsChannel.send({
                     embeds: [
                         embed
+                    ],
+                    components: [
+                        row
                     ]
                 });
 
