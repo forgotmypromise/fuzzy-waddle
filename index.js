@@ -29,7 +29,10 @@ const {
     removeFromWhitelist,
     isWhitelisted,
     setSupportStatus,
-    getSupportStatus
+    getSupportStatus,
+    getAppStatus,
+    setAppStatus,
+    isAppOpen
 } = require('./lib/storage');
 
 const resetsModule = require('./lib/resets');
@@ -226,7 +229,8 @@ const REASON_MESSAGES = {
     break: 'is currently on break',
     busy: 'is currently busy / away',
     offline: 'is currently offline / unavailable',
-    working: 'is currently working on something else'
+    working: 'is currently working on something else',
+    school: 'is currently at school / not home'
 };
 
 function parseUntilTime(timeStr) {
@@ -2001,27 +2005,30 @@ client.on(
                             true
                         );
 
-                    if (
-                        role === 'staff' ||
-                        role === 'helper'
-                    ) {
+                    // Check if this application type is open
+                    if (!isAppOpen(interaction.guildId, role)) {
                         const label =
                             role.charAt(0).toUpperCase() +
                             role.slice(1);
+                        const status = getAppStatus(interaction.guildId);
+                        const openOnes = Object.entries(status)
+                            .filter(([, open]) => open)
+                            .map(([k]) => k.charAt(0).toUpperCase() + k.slice(1));
 
                         await interaction.reply({
                             content:
                                 `❌ **${label}** applications are currently **closed**.\n\n` +
-                                `Only **Media** applications are open right now.`,
+                                (openOnes.length
+                                    ? `Currently open: **${openOnes.join(', ')}**`
+                                    : 'No applications are open right now.'),
                             ephemeral: true
                         });
 
                         return;
                     }
 
-                    if (
-                        role === 'media'
-                    ) {
+                    // ---------- MEDIA ----------
+                    if (role === 'media') {
                         const modal =
                             new ModalBuilder()
                                 .setCustomId(
@@ -2159,6 +2166,178 @@ client.on(
 
                         return;
                     }
+
+                    // ---------- STAFF ----------
+                    if (role === 'staff') {
+                        const modal = new ModalBuilder()
+                            .setCustomId('staff_application_modal')
+                            .setTitle('Staff Application');
+
+                        modal.addComponents(
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('age')
+                                    .setLabel('Age')
+                                    .setPlaceholder('e.g. 17')
+                                    .setStyle(TextInputStyle.Short)
+                                    .setRequired(true)
+                                    .setMaxLength(10)
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('timezone')
+                                    .setLabel('Timezone')
+                                    .setPlaceholder('e.g. EST, GMT+1, PST')
+                                    .setStyle(TextInputStyle.Short)
+                                    .setRequired(true)
+                                    .setMaxLength(30)
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('experience')
+                                    .setLabel('Previous staff / moderation experience')
+                                    .setPlaceholder('Describe any past moderation or staff experience...')
+                                    .setStyle(TextInputStyle.Paragraph)
+                                    .setRequired(true)
+                                    .setMaxLength(1000)
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('why')
+                                    .setLabel('Why do you want to be Staff?')
+                                    .setPlaceholder('Explain your motivation and what you can bring...')
+                                    .setStyle(TextInputStyle.Paragraph)
+                                    .setRequired(true)
+                                    .setMaxLength(1000)
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('extra')
+                                    .setLabel('Anything else we should know?')
+                                    .setPlaceholder('Optional extra information')
+                                    .setStyle(TextInputStyle.Paragraph)
+                                    .setRequired(false)
+                                    .setMaxLength(800)
+                            )
+                        );
+
+                        await interaction.showModal(modal);
+                        return;
+                    }
+
+                    // ---------- HELPER ----------
+                    if (role === 'helper') {
+                        const modal = new ModalBuilder()
+                            .setCustomId('helper_application_modal')
+                            .setTitle('Helper Application');
+
+                        modal.addComponents(
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('age')
+                                    .setLabel('Age')
+                                    .setPlaceholder('e.g. 16')
+                                    .setStyle(TextInputStyle.Short)
+                                    .setRequired(true)
+                                    .setMaxLength(10)
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('timezone')
+                                    .setLabel('Timezone')
+                                    .setPlaceholder('e.g. EST, GMT+1')
+                                    .setStyle(TextInputStyle.Short)
+                                    .setRequired(true)
+                                    .setMaxLength(30)
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('availability')
+                                    .setLabel('How often can you help?')
+                                    .setPlaceholder('Daily, a few hours a day, weekends only, etc.')
+                                    .setStyle(TextInputStyle.Short)
+                                    .setRequired(true)
+                                    .setMaxLength(100)
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('why')
+                                    .setLabel('Why do you want to be a Helper?')
+                                    .setPlaceholder('Tell us why you want to help the community...')
+                                    .setStyle(TextInputStyle.Paragraph)
+                                    .setRequired(true)
+                                    .setMaxLength(1000)
+                            ),
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder()
+                                    .setCustomId('extra')
+                                    .setLabel('Anything else?')
+                                    .setPlaceholder('Optional extra information')
+                                    .setStyle(TextInputStyle.Paragraph)
+                                    .setRequired(false)
+                                    .setMaxLength(800)
+                            )
+                        );
+
+                        await interaction.showModal(modal);
+                        return;
+                    }
+                }
+
+
+                // ---------------------------------------------
+                // /toggleapps
+                // ---------------------------------------------
+
+                if (
+                    interaction.commandName ===
+                    'toggleapps'
+                ) {
+                    if (
+                        !canUseRestrictedCommand(
+                            interaction
+                        )
+                    ) {
+                        await interaction.reply({
+                            content:
+                                '❌ You do not have permission to use this command.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    const type =
+                        interaction.options.getString(
+                            'type',
+                            true
+                        );
+                    const state =
+                        interaction.options.getString(
+                            'state',
+                            true
+                        );
+                    const isOpen = state === 'open';
+
+                    const newStatus = setAppStatus(
+                        interaction.guildId,
+                        type,
+                        isOpen
+                    );
+
+                    const format = (key) =>
+                        `**${key.charAt(0).toUpperCase() + key.slice(1)}**: ${newStatus[key] ? '🟢 Open' : '🔴 Closed'}`;
+
+                    await interaction.reply({
+                        content:
+                            `✅ Application status updated.\n\n` +
+                            `${format('media')}\n` +
+                            `${format('staff')}\n` +
+                            `${format('helper')}`,
+                        ephemeral: true
+                    });
+
+                    return;
                 }
             }
 
@@ -2702,7 +2881,7 @@ client.on(
 
 
                 // ---------------------------------------------
-                // APPLICATION ACCEPT / DECLINE
+                // APPLICATION ACCEPT / DECLINE / RESEND
                 // ---------------------------------------------
 
                 if (
@@ -2711,6 +2890,9 @@ client.on(
                     ) ||
                     interaction.customId.startsWith(
                         'app_decline_'
+                    ) ||
+                    interaction.customId.startsWith(
+                        'app_resend_'
                     )
                 ) {
                     // Only staff / admins / owners can review
@@ -2734,69 +2916,102 @@ client.on(
                         return;
                     }
 
-                    const isAccept =
-                        interaction.customId.startsWith(
-                            'app_accept_'
-                        );
+                    const parts = interaction.customId.split('_');
+                    // customId formats:
+                    // app_accept_<userId>_<type>
+                    // app_decline_<userId>_<type>
+                    // app_resend_<userId>_<type>
+                    // (legacy without type still works → defaults to media)
+                    const action = parts[1]; // accept | decline | resend
+                    const applicantId = parts[2];
+                    const appType = parts[3] || 'media'; // media | staff | helper
 
-                    const applicantId =
-                        interaction.customId
-                            .split('_')
-                            .pop();
+                    const typeLabel =
+                        appType.charAt(0).toUpperCase() +
+                        appType.slice(1);
 
-                    // Optional: give Media role on accept
-                    // Set MEDIA_ROLE_ID in your .env / Railway variables
-                    const MEDIA_ROLE_ID =
-                        process.env.MEDIA_ROLE_ID ||
-                        '';
+                    // ---------- RESEND ----------
+                    if (action === 'resend') {
+                        try {
+                            const applicant =
+                                await interaction.client.users.fetch(
+                                    applicantId
+                                );
+
+                            await applicant.send({
+                                content:
+                                    `📝 **Please resubmit your ${typeLabel} application**\n\n` +
+                                    `Your previous application needs more detail or a clearer format.\n\n` +
+                                    `Please use \`/apply role:${appType}\` again and make sure to:\n` +
+                                    `• Write a more proper / professional response\n` +
+                                    `• Give a more in-depth explanation of your experience and motivation\n` +
+                                    `• Fill every field carefully\n\n` +
+                                    `Thank you!`
+                            });
+
+                            await interaction.reply({
+                                content:
+                                    `✅ Sent a “please resubmit” message to <@${applicantId}>.`,
+                                ephemeral: true
+                            });
+                        } catch {
+                            await interaction.reply({
+                                content:
+                                    `⚠️ Could not DM <@${applicantId}> (they may have DMs closed).`,
+                                ephemeral: true
+                            });
+                        }
+
+                        return;
+                    }
+
+                    // ---------- ACCEPT / DECLINE ----------
+                    const isAccept = action === 'accept';
+
+                    // Role IDs (set these in Railway / .env)
+                    const ROLE_IDS = {
+                        media: process.env.MEDIA_ROLE_ID || '',
+                        staff: process.env.STAFF_ROLE_ID || '',
+                        helper: process.env.HELPER_ROLE_ID || ''
+                    };
 
                     let roleNote = '';
 
-                    if (
-                        isAccept &&
-                        MEDIA_ROLE_ID
-                    ) {
+                    if (isAccept && ROLE_IDS[appType]) {
                         try {
                             const member =
                                 await interaction.guild.members
-                                    .fetch(
-                                        applicantId
-                                    )
-                                    .catch(
-                                        () => null
-                                    );
+                                    .fetch(applicantId)
+                                    .catch(() => null);
 
                             if (member) {
                                 await member.roles.add(
-                                    MEDIA_ROLE_ID
+                                    ROLE_IDS[appType]
                                 );
 
                                 roleNote =
-                                    `\nRole <@&${MEDIA_ROLE_ID}> has been given.`;
+                                    `\nRole <@&${ROLE_IDS[appType]}> has been given.`;
                             } else {
                                 roleNote =
                                     '\n⚠️ Could not find the user in this server to give the role.';
                             }
                         } catch (err) {
                             console.error(
-                                'Failed to give Media role:',
+                                `Failed to give ${typeLabel} role:`,
                                 err
                             );
 
                             roleNote =
-                                '\n⚠️ Failed to give the Media role (check bot permissions / role hierarchy).';
+                                `\n⚠️ Failed to give the ${typeLabel} role (check bot permissions / role hierarchy).`;
                         }
                     }
 
                     // Update the original embed
                     const originalEmbed =
-                        interaction.message
-                            .embeds[0];
+                        interaction.message.embeds[0];
 
                     const updatedEmbed =
-                        EmbedBuilder.from(
-                            originalEmbed
-                        )
+                        EmbedBuilder.from(originalEmbed)
                             .setColor(
                                 isAccept
                                     ? 0x57f287
@@ -2804,8 +3019,8 @@ client.on(
                             )
                             .setTitle(
                                 isAccept
-                                    ? '✅ Media Application — Accepted'
-                                    : '❌ Media Application — Declined'
+                                    ? `✅ ${typeLabel} Application — Accepted`
+                                    : `❌ ${typeLabel} Application — Declined`
                             )
                             .addFields({
                                 name: 'Reviewed by',
@@ -2843,16 +3058,26 @@ client.on(
                                 .setEmoji('❌')
                                 .setDisabled(
                                     true
+                                ),
+                            new ButtonBuilder()
+                                .setCustomId(
+                                    'app_resend_done'
+                                )
+                                .setLabel(
+                                    'Ask to Resubmit'
+                                )
+                                .setStyle(
+                                    ButtonStyle.Secondary
+                                )
+                                .setEmoji('📝')
+                                .setDisabled(
+                                    true
                                 )
                         );
 
                     await interaction.update({
-                        embeds: [
-                            updatedEmbed
-                        ],
-                        components: [
-                            disabledRow
-                        ]
+                        embeds: [updatedEmbed],
+                        components: [disabledRow]
                     });
 
                     // Try to DM the applicant
@@ -2864,8 +3089,8 @@ client.on(
 
                         await applicant.send({
                             content: isAccept
-                                ? `🎉 Your **Media** application has been **accepted**!${roleNote}`
-                                : `❌ Your **Media** application has been **declined**.`
+                                ? `🎉 Your **${typeLabel}** application has been **accepted**!${roleNote}`
+                                : `❌ Your **${typeLabel}** application has been **declined**.`
                         });
                     } catch {
                         // User has DMs closed — ignore
@@ -3049,18 +3274,25 @@ client.on(
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setCustomId(
-                            `app_accept_${interaction.user.id}`
+                            `app_accept_${interaction.user.id}_media`
                         )
                         .setLabel('Accept')
                         .setStyle(ButtonStyle.Success)
                         .setEmoji('✅'),
                     new ButtonBuilder()
                         .setCustomId(
-                            `app_decline_${interaction.user.id}`
+                            `app_decline_${interaction.user.id}_media`
                         )
                         .setLabel('Decline')
                         .setStyle(ButtonStyle.Danger)
-                        .setEmoji('❌')
+                        .setEmoji('❌'),
+                    new ButtonBuilder()
+                        .setCustomId(
+                            `app_resend_${interaction.user.id}_media`
+                        )
+                        .setLabel('Ask to Resubmit')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setEmoji('📝')
                 );
 
                 await appsChannel.send({
@@ -3082,7 +3314,276 @@ client.on(
             }
 
 
+            
             // =================================================
+            // STAFF APPLICATION MODAL
+            // =================================================
+
+            if (
+                interaction.isModalSubmit() &&
+                interaction.customId ===
+                    'staff_application_modal'
+            ) {
+                const age =
+                    interaction.fields
+                        .getTextInputValue('age')
+                        .trim();
+                const timezone =
+                    interaction.fields
+                        .getTextInputValue('timezone')
+                        .trim();
+                const experience =
+                    interaction.fields
+                        .getTextInputValue('experience')
+                        .trim();
+                const why =
+                    interaction.fields
+                        .getTextInputValue('why')
+                        .trim();
+                const extra =
+                    interaction.fields
+                        .getTextInputValue('extra')
+                        ?.trim() || 'None';
+
+                const appsChannelId =
+                    process.env.APPLICATIONS_CHANNEL_ID ||
+                    '1545903366213869651';
+
+                const appsChannel =
+                    await interaction.client.channels
+                        .fetch(appsChannelId)
+                        .catch(() => null);
+
+                if (!appsChannel) {
+                    await interaction.reply({
+                        content:
+                            '❌ Could not find the applications channel. Please contact an admin.',
+                        ephemeral: true
+                    });
+                    return;
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🛡️ New Staff Application')
+                    .setColor(0xed4245)
+                    .setAuthor({
+                        name: interaction.user.tag,
+                        iconURL:
+                            interaction.user.displayAvatarURL({
+                                dynamic: true
+                            })
+                    })
+                    .addFields(
+                        {
+                            name: 'Applicant',
+                            value: `${interaction.user} (\`${interaction.user.id}\`)`,
+                            inline: false
+                        },
+                        {
+                            name: 'Age',
+                            value: age,
+                            inline: true
+                        },
+                        {
+                            name: 'Timezone',
+                            value: timezone,
+                            inline: true
+                        },
+                        {
+                            name: 'Experience',
+                            value: experience,
+                            inline: false
+                        },
+                        {
+                            name: 'Why Staff?',
+                            value: why,
+                            inline: false
+                        },
+                        {
+                            name: 'Extra',
+                            value: extra,
+                            inline: false
+                        }
+                    )
+                    .setTimestamp()
+                    .setFooter({
+                        text: `User ID: ${interaction.user.id}`
+                    });
+
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(
+                            `app_accept_${interaction.user.id}_staff`
+                        )
+                        .setLabel('Accept')
+                        .setStyle(ButtonStyle.Success)
+                        .setEmoji('✅'),
+                    new ButtonBuilder()
+                        .setCustomId(
+                            `app_decline_${interaction.user.id}_staff`
+                        )
+                        .setLabel('Decline')
+                        .setStyle(ButtonStyle.Danger)
+                        .setEmoji('❌'),
+                    new ButtonBuilder()
+                        .setCustomId(
+                            `app_resend_${interaction.user.id}_staff`
+                        )
+                        .setLabel('Ask to Resubmit')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setEmoji('📝')
+                );
+
+                await appsChannel.send({
+                    embeds: [embed],
+                    components: [row]
+                });
+
+                await interaction.reply({
+                    content:
+                        '✅ Your **Staff** application has been submitted! Staff will review it soon.',
+                    ephemeral: true
+                });
+
+                return;
+            }
+
+
+            // =================================================
+            // HELPER APPLICATION MODAL
+            // =================================================
+
+            if (
+                interaction.isModalSubmit() &&
+                interaction.customId ===
+                    'helper_application_modal'
+            ) {
+                const age =
+                    interaction.fields
+                        .getTextInputValue('age')
+                        .trim();
+                const timezone =
+                    interaction.fields
+                        .getTextInputValue('timezone')
+                        .trim();
+                const availability =
+                    interaction.fields
+                        .getTextInputValue('availability')
+                        .trim();
+                const why =
+                    interaction.fields
+                        .getTextInputValue('why')
+                        .trim();
+                const extra =
+                    interaction.fields
+                        .getTextInputValue('extra')
+                        ?.trim() || 'None';
+
+                const appsChannelId =
+                    process.env.APPLICATIONS_CHANNEL_ID ||
+                    '1545903366213869651';
+
+                const appsChannel =
+                    await interaction.client.channels
+                        .fetch(appsChannelId)
+                        .catch(() => null);
+
+                if (!appsChannel) {
+                    await interaction.reply({
+                        content:
+                            '❌ Could not find the applications channel. Please contact an admin.',
+                        ephemeral: true
+                    });
+                    return;
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🤝 New Helper Application')
+                    .setColor(0x57f287)
+                    .setAuthor({
+                        name: interaction.user.tag,
+                        iconURL:
+                            interaction.user.displayAvatarURL({
+                                dynamic: true
+                            })
+                    })
+                    .addFields(
+                        {
+                            name: 'Applicant',
+                            value: `${interaction.user} (\`${interaction.user.id}\`)`,
+                            inline: false
+                        },
+                        {
+                            name: 'Age',
+                            value: age,
+                            inline: true
+                        },
+                        {
+                            name: 'Timezone',
+                            value: timezone,
+                            inline: true
+                        },
+                        {
+                            name: 'Availability',
+                            value: availability,
+                            inline: false
+                        },
+                        {
+                            name: 'Why Helper?',
+                            value: why,
+                            inline: false
+                        },
+                        {
+                            name: 'Extra',
+                            value: extra,
+                            inline: false
+                        }
+                    )
+                    .setTimestamp()
+                    .setFooter({
+                        text: `User ID: ${interaction.user.id}`
+                    });
+
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(
+                            `app_accept_${interaction.user.id}_helper`
+                        )
+                        .setLabel('Accept')
+                        .setStyle(ButtonStyle.Success)
+                        .setEmoji('✅'),
+                    new ButtonBuilder()
+                        .setCustomId(
+                            `app_decline_${interaction.user.id}_helper`
+                        )
+                        .setLabel('Decline')
+                        .setStyle(ButtonStyle.Danger)
+                        .setEmoji('❌'),
+                    new ButtonBuilder()
+                        .setCustomId(
+                            `app_resend_${interaction.user.id}_helper`
+                        )
+                        .setLabel('Ask to Resubmit')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setEmoji('📝')
+                );
+
+                await appsChannel.send({
+                    embeds: [embed],
+                    components: [row]
+                });
+
+                await interaction.reply({
+                    content:
+                        '✅ Your **Helper** application has been submitted! Staff will review it soon.',
+                    ephemeral: true
+                });
+
+                return;
+            }
+
+
+// =================================================
             // REDEEM MODAL
             // =================================================
 
