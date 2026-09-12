@@ -2005,13 +2005,24 @@ client.on(
                             true
                         );
 
+                    // Must be used in a server
+                    if (!interaction.guildId) {
+                        await interaction.reply({
+                            content:
+                                '❌ Please use `/apply` inside the server (not in DMs).',
+                            ephemeral: true
+                        });
+                        return;
+                    }
+
                     // Check if this application type is open
+                    const appStatus = getAppStatus(interaction.guildId);
+
                     if (!isAppOpen(interaction.guildId, role)) {
                         const label =
                             role.charAt(0).toUpperCase() +
                             role.slice(1);
-                        const status = getAppStatus(interaction.guildId);
-                        const openOnes = Object.entries(status)
+                        const openOnes = Object.entries(appStatus)
                             .filter(([, open]) => open)
                             .map(([k]) => k.charAt(0).toUpperCase() + k.slice(1));
 
@@ -2020,7 +2031,8 @@ client.on(
                                 `❌ **${label}** applications are currently **closed**.\n\n` +
                                 (openOnes.length
                                     ? `Currently open: **${openOnes.join(', ')}**`
-                                    : 'No applications are open right now.'),
+                                    : 'No applications are open right now.') +
+                                `\n\n_Admin tip: run \`/toggleapps type:${role} state:open\` in this server._`,
                             ephemeral: true
                         });
 
@@ -2307,6 +2319,15 @@ client.on(
                         return;
                     }
 
+                    if (!interaction.guildId) {
+                        await interaction.reply({
+                            content:
+                                '❌ Please use `/toggleapps` inside the server (not in DMs).',
+                            ephemeral: true
+                        });
+                        return;
+                    }
+
                     const type =
                         interaction.options.getString(
                             'type',
@@ -2325,15 +2346,19 @@ client.on(
                         isOpen
                     );
 
+                    // Re-read to confirm what was actually saved
+                    const confirmed = getAppStatus(interaction.guildId);
+
                     const format = (key) =>
-                        `**${key.charAt(0).toUpperCase() + key.slice(1)}**: ${newStatus[key] ? '🟢 Open' : '🔴 Closed'}`;
+                        `**${key.charAt(0).toUpperCase() + key.slice(1)}**: ${confirmed[key] ? '🟢 Open' : '🔴 Closed'}`;
 
                     await interaction.reply({
                         content:
-                            `✅ Application status updated.\n\n` +
+                            `✅ Application status updated for this server.\n\n` +
                             `${format('media')}\n` +
                             `${format('staff')}\n` +
-                            `${format('helper')}`,
+                            `${format('helper')}\n\n` +
+                            `_Guild ID: \`${interaction.guildId}\`_`,
                         ephemeral: true
                     });
 
