@@ -43,7 +43,9 @@ const {
 const resetsModule = require('./lib/resets');
 
 const {
-    generateKey
+    generateKey,
+    durationLabel,
+    computeExpiresAt
 } = require('./lib/keygen');
 
 const {
@@ -2023,9 +2025,24 @@ client.on(
                             'format'
                         ) || 'polo';
 
+                    const duration =
+                        interaction.options.getString(
+                            'duration'
+                        ) || 'lifetime';
+
+                    const note =
+                        interaction.options.getString(
+                            'note'
+                        )?.trim() || '';
+
                     await interaction.deferReply({
                         ephemeral: true
                     });
+
+                    const expiresAt =
+                        computeExpiresAt(
+                            duration
+                        );
 
                     const generated = [];
 
@@ -2043,7 +2060,12 @@ client.on(
                             await cloudflareRequest(
                                 '/create',
                                 {
-                                    key
+                                    key,
+                                    duration,
+                                    expiresAt,
+                                    note:
+                                        note ||
+                                        undefined
                                 }
                             );
 
@@ -2070,9 +2092,29 @@ client.on(
                         return;
                     }
 
+                    const durLabel =
+                        durationLabel(
+                            duration
+                        );
+
+                    const noteLine =
+                        note
+                            ? `\n📝 Note: **${note}**`
+                            : '';
+
+                    const expiresLine =
+                        expiresAt
+                            ? `\n⏳ Expires: **${new Date(expiresAt).toUTCString()}**`
+                            : '\n⏳ Expires: **Never (Lifetime)**';
+
                     await interaction.editReply({
                         content:
-                            `✅ Generated **${generated.length}** key(s) and saved them to Cloudflare KV:\n\n` +
+                            `✅ Generated **${generated.length}** key(s)\n` +
+                            `📦 Format: **${format}**\n` +
+                            `⏱ Duration: **${durLabel}**` +
+                            expiresLine +
+                            noteLine +
+                            `\n\n` +
                             '```text\n' +
                             generated.join('\n') +
                             '\n```'
@@ -2116,6 +2158,36 @@ client.on(
                                 value:
                                     `\`${format}\``,
                                 inline: true
+                            },
+                            {
+                                name:
+                                    'Duration',
+                                value:
+                                    `\`${durLabel}\``,
+                                inline: true
+                            },
+                            {
+                                name:
+                                    'Note',
+                                value:
+                                    note
+                                        ? note.slice(0, 200)
+                                        : 'None',
+                                inline: true
+                            },
+                            {
+                                name:
+                                    'Keys',
+                                value:
+                                    '```\n' +
+                                    generated
+                                        .slice(0, 15)
+                                        .join('\n') +
+                                    (generated.length > 15
+                                        ? '\n…'
+                                        : '') +
+                                    '\n```',
+                                inline: false
                             }
                         ]
                     });
@@ -3108,6 +3180,19 @@ client.on(
                                 ? `<t:${Math.floor(new Date(license.activatedAt).getTime() / 1000)}:R>`
                                 : 'Not activated';
 
+                        const expiresDisplay =
+                            license.expiresAt
+                                ? `<t:${Math.floor(new Date(license.expiresAt).getTime() / 1000)}:R>`
+                                : 'Never (Lifetime)';
+
+                        const durationDisplay =
+                            license.duration || 'lifetime';
+
+                        const noteDisplay =
+                            license.note
+                                ? license.note
+                                : 'None';
+
                         let statusEmoji = '📌';
 
                         if (
@@ -3203,6 +3288,27 @@ client.on(
                                             '🔑 Redeemed',
                                         value:
                                             redeemedAt,
+                                        inline: true
+                                    },
+                                    {
+                                        name:
+                                            '⏱ Duration',
+                                        value:
+                                            `\`${durationDisplay}\``,
+                                        inline: true
+                                    },
+                                    {
+                                        name:
+                                            '⏳ Expires',
+                                        value:
+                                            expiresDisplay,
+                                        inline: true
+                                    },
+                                    {
+                                        name:
+                                            '📝 Note',
+                                        value:
+                                            noteDisplay,
                                         inline: true
                                     },
                                     {
