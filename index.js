@@ -228,12 +228,14 @@ const PANEL_BLACKLISTED_ROLE_ID =
     process.env.PANEL_BLACKLISTED_ROLE_ID || '1409765159164969071';
 
 /**
- * Panel buttons (except Help) require PANEL_ALLOWED_ROLE_ID.
- * PANEL_BLACKLISTED_ROLE_ID is blocked from everything except Help.
- * Help is available to everyone.
+ * Panel access rules:
+ * - Help: everyone (including blacklisted)
+ * - Redeem Key: everyone EXCEPT the blacklisted role
+ * - All other buttons: require PANEL_ALLOWED_ROLE_ID, and blacklisted is blocked
  */
 function canUsePanelButton(interaction, customId) {
     const isHelp = customId === 'polo_help';
+    const isRedeem = customId === 'polo_redeem';
 
     const member = interaction.member;
     const roles = member?.roles?.cache;
@@ -248,13 +250,18 @@ function canUsePanelButton(interaction, customId) {
         return { allowed: true };
     }
 
-    // Blacklisted role: blocked from all non-help panel buttons
+    // Blacklisted role: blocked from everything except Help
     if (hasBlacklisted) {
         return {
             allowed: false,
             reason:
                 '❌ You are not allowed to use this panel button.'
         };
+    }
+
+    // Redeem Key: open to everyone who is not blacklisted
+    if (isRedeem) {
+        return { allowed: true };
     }
 
     // All other panel buttons require the allowed role
@@ -4031,6 +4038,22 @@ client.on(
                 interaction.customId ===
                     'polo_redeem_modal'
             ) {
+
+                // Block blacklisted role from redeeming
+                const roles =
+                    interaction.member?.roles?.cache;
+                if (
+                    roles?.has(
+                        PANEL_BLACKLISTED_ROLE_ID
+                    )
+                ) {
+                    await interaction.reply({
+                        content:
+                            '❌ You are not allowed to redeem keys.',
+                        ephemeral: true
+                    });
+                    return;
+                }
 
                 const inputKey =
                     interaction.fields
