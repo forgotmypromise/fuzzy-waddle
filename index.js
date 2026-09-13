@@ -27,14 +27,17 @@ const {
     loadWhitelist,
     addToWhitelist,
     removeFromWhitelist,
+    setUserPerms,
+    getUserPerms,
     isWhitelisted,
+    userCanUseCommand,
     setSupportStatus,
     getSupportStatus,
     getAppStatus,
     setAppStatus,
     isAppOpen,
-    getAnnounceText,
-    setAnnounceText
+    getFreeScriptText,
+    setFreeScriptText
 } = require('./lib/storage');
 
 const resetsModule = require('./lib/resets');
@@ -44,7 +47,8 @@ const {
 } = require('./lib/keygen');
 
 const {
-    commandDefs
+    commandDefs,
+    GRANTABLE_COMMANDS
 } = require('./lib/commands');
 
 const DATA_DIR =
@@ -156,16 +160,23 @@ function canUseRestrictedCommand(
     const userId =
         interaction.user.id;
 
-    // Owners always allowed
+    // Owners can use everything
     if (
         getOwnerIds().includes(userId)
     ) {
         return true;
     }
 
-    // Whitelisted users allowed
+    const commandName =
+        interaction.commandName;
+
+    // Whitelisted users: check per-command perms
     if (
-        isWhitelisted(userId)
+        commandName &&
+        userCanUseCommand(
+            userId,
+            commandName
+        )
     ) {
         return true;
     }
@@ -536,23 +547,13 @@ async function registerCommands() {
          * This means old/duplicated commands are removed
          * instead of another copy being added.
          */
-        await rest.put(
-            Routes.applicationCommands(
-                process.env.CLIENT_ID
-            ),
-            {
-                body:
-                    uniqueCommands
-            }
-        );
-
-        console.log(
-            'Global slash commands registered successfully.'
-        );
-
         /*
-         * Guild commands are also replaced completely.
-         * This prevents old duplicated guild commands.
+         * Avoid duplicates:
+         * - If GUILD_ID is set → register guild-only (instant) and clear global
+         * - Otherwise → register global only
+         *
+         * Registering BOTH global + guild causes every command to appear twice
+         * inside that server.
          */
         if (
             process.env.GUILD_ID
@@ -568,8 +569,32 @@ async function registerCommands() {
                 }
             );
 
+            // Clear global commands so they don't stack with guild ones
+            await rest.put(
+                Routes.applicationCommands(
+                    process.env.CLIENT_ID
+                ),
+                {
+                    body: []
+                }
+            );
+
             console.log(
-                `Guild slash commands registered successfully for ${process.env.GUILD_ID}.`
+                `Guild slash commands registered for ${process.env.GUILD_ID} (duplicates cleared).`
+            );
+        } else {
+            await rest.put(
+                Routes.applicationCommands(
+                    process.env.CLIENT_ID
+                ),
+                {
+                    body:
+                        uniqueCommands
+                }
+            );
+
+            console.log(
+                'Global slash commands registered successfully.'
             );
         }
 
@@ -1125,7 +1150,7 @@ client.on(
                     ) {
                         await interaction.reply({
                             content:
-                                '❌ Only owners and admins can manage the whitelist.',
+                                '❌ Only bot owners can manage the whitelist.',
                             ephemeral: true
                         });
 
@@ -1147,13 +1172,14 @@ client.on(
 
                         const added =
                             addToWhitelist(
-                                user.id
+                                user.id,
+                                ['all']
                             );
 
                         await interaction.reply({
                             content:
                                 added
-                                    ? `✅ Added **${user.tag}** (\`${user.id}\`) to the whitelist.`
+                                    ? `✅ Added **${user.tag}** (\`${user.id}\`) to the whitelist with access to **all** restricted commands.\n\nUse \`/whitelist setperms\` to limit which commands they can use.`
                                     : `ℹ️ **${user.tag}** is already on the whitelist.`,
                             ephemeral: true
                         });
@@ -1187,13 +1213,105 @@ client.on(
                     }
 
                     if (
+                        sub === 'setperms'
+                    ) {
+                        const user =
+                            interaction.options.getUser(
+                                'user',
+                                true
+                            );
+
+                        const raw =
+                            interaction.options.getString(
+                                'commands',
+                                true
+                            );
+
+                        const parts =
+                            raw
+                                .split(',')
+                                .map(s => s.trim().toLowerCase())
+                                .filter(Boolean);
+
+                        if (!parts.length) {
+                            await interaction.reply({
+                                content:
+                                    '❌ Provide at least one command name, or `all`.',
+                                ephemeral: true
+                            });
+
+                            return;
+                        }
+
+                        if (
+                            !parts.includes('all')
+                        ) {
+                            const allowed =
+                                new Set(
+                                    (GRANTABLE_COMMANDS || []).map(
+                                        c => c.toLowerCase()
+                                    )
+                                );
+
+                            const invalid =
+                                parts.filter(
+                                    p => !allowed.has(p)
+                                );
+
+                            if (
+                                invalid.length
+                            ) {
+                                await interaction.reply({
+                                    content:
+                                        `❌ Unknown command(s): **${invalid.join(', ')}**\n\n` +
+                                        `Valid options: \`all\`, ${[...allowed].join(', ')}`,
+                                    ephemeral: true
+                                });
+
+                                return;
+                            }
+                        }
+
+                        // Ensure user is on whitelist first
+                        if (
+                            !isWhitelisted(
+                                user.id
+                            )
+                        ) {
+                            addToWhitelist(
+                                user.id,
+                                parts
+                            );
+                        } else {
+                            setUserPerms(
+                                user.id,
+                                parts
+                            );
+                        }
+
+                        const perms =
+                            getUserPerms(
+                                user.id
+                            );
+
+                        await interaction.reply({
+                            content:
+                                `✅ Permissions updated for **${user.tag}**.\n\n` +
+                                `Allowed: **${(perms || []).join(', ')}**`,
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    if (
                         sub === 'list'
                     ) {
-                        const list =
+                        const ids =
                             loadWhitelist();
 
                         if (
-                            !list.length
+                            !ids.length
                         ) {
                             await interaction.reply({
                                 content:
@@ -1206,18 +1324,26 @@ client.on(
 
                         const lines =
                             await Promise.all(
-                                list.map(
+                                ids.map(
                                     async id => {
+                                        const perms =
+                                            getUserPerms(
+                                                id
+                                            ) || [];
+
+                                        const permStr =
+                                            perms.join(', ');
+
                                         try {
                                             const u =
                                                 await interaction.client.users.fetch(
                                                     id
                                                 );
 
-                                            return `• **${u.tag}** (\`${id}\`)`;
+                                            return `• **${u.tag}** (\`${id}\`) — \`${permStr}\``;
 
                                         } catch {
-                                            return `• Unknown user (\`${id}\`)`;
+                                            return `• Unknown user (\`${id}\`) — \`${permStr}\``;
                                         }
                                     }
                                 )
@@ -1225,7 +1351,7 @@ client.on(
 
                         await interaction.reply({
                             content:
-                                `📋 **Whitelist** (${list.length}):\n${lines.join('\n')}`,
+                                `📋 **Whitelist** (${ids.length}):\n${lines.join('\n')}`,
                             ephemeral: true
                         });
 
@@ -2120,12 +2246,12 @@ client.on(
 
 
                 // ---------------------------------------------
-                // /setannounce
+                // /setfreescript
                 // ---------------------------------------------
 
                 if (
                     interaction.commandName ===
-                    'setannounce'
+                    'setfreescript'
                 ) {
                     if (
                         !canUseRestrictedCommand(
@@ -2134,7 +2260,7 @@ client.on(
                     ) {
                         await interaction.reply({
                             content:
-                                '❌ You do not have permission to set the announce message.',
+                                '❌ You do not have permission to set the free-script message.',
                             ephemeral: true
                         });
 
@@ -2157,12 +2283,12 @@ client.on(
                         return;
                     }
 
-                    setAnnounceText(text);
+                    setFreeScriptText(text);
 
                     await interaction.reply({
                         content:
-                            '✅ Announce message saved.\n\n' +
-                            'Use `/announce` to post it for everyone to see.',
+                            '✅ Free-script message saved.\n\n' +
+                            'Use `/freescript` to post it for everyone to see.',
                         ephemeral: true
                     });
 
@@ -2171,12 +2297,12 @@ client.on(
 
 
                 // ---------------------------------------------
-                // /announce
+                // /freescript
                 // ---------------------------------------------
 
                 if (
                     interaction.commandName ===
-                    'announce'
+                    'freescript'
                 ) {
                     if (
                         !canUseRestrictedCommand(
@@ -2185,7 +2311,7 @@ client.on(
                     ) {
                         await interaction.reply({
                             content:
-                                '❌ You do not have permission to announce.',
+                                '❌ You do not have permission to post free-script messages.',
                             ephemeral: true
                         });
 
@@ -2199,13 +2325,13 @@ client.on(
 
                     const message =
                         custom ||
-                        getAnnounceText();
+                        getFreeScriptText();
 
                     if (!message) {
                         await interaction.reply({
                             content:
-                                '❌ No announce message set.\n\n' +
-                                'Use `/setannounce text:...` first, or pass `text` to this command.',
+                                '❌ No free-script message set.\n\n' +
+                                'Use `/setfreescript text:...` first, or pass `text` to this command.',
                             ephemeral: true
                         });
 
@@ -2219,7 +2345,7 @@ client.on(
 
                     await interaction.reply({
                         content:
-                            '✅ Announce posted.',
+                            '✅ Free-script message posted.',
                         ephemeral: true
                     });
 
