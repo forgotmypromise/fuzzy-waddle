@@ -233,6 +233,59 @@ const REASON_MESSAGES = {
     school: 'is currently at school / not home'
 };
 
+
+// =====================================================
+// PANEL BUTTON ACCESS CONTROL
+// =====================================================
+
+const PANEL_ALLOWED_ROLE_ID =
+    process.env.PANEL_ALLOWED_ROLE_ID || '1409762874754203742';
+const PANEL_BLACKLISTED_ROLE_ID =
+    process.env.PANEL_BLACKLISTED_ROLE_ID || '1409765159164969071';
+
+/**
+ * Panel buttons (except Help) require PANEL_ALLOWED_ROLE_ID.
+ * PANEL_BLACKLISTED_ROLE_ID is blocked from everything except Help.
+ * Help is available to everyone.
+ */
+function canUsePanelButton(interaction, customId) {
+    const isHelp = customId === 'polo_help';
+
+    const member = interaction.member;
+    const roles = member?.roles?.cache;
+
+    const hasAllowed =
+        roles?.has(PANEL_ALLOWED_ROLE_ID) === true;
+    const hasBlacklisted =
+        roles?.has(PANEL_BLACKLISTED_ROLE_ID) === true;
+
+    // Help: open to everyone (including blacklisted)
+    if (isHelp) {
+        return { allowed: true };
+    }
+
+    // Blacklisted role: blocked from all non-help panel buttons
+    if (hasBlacklisted) {
+        return {
+            allowed: false,
+            reason:
+                '❌ You are not allowed to use this panel button.'
+        };
+    }
+
+    // All other panel buttons require the allowed role
+    if (!hasAllowed) {
+        return {
+            allowed: false,
+            reason:
+                '❌ You need the required role to use this panel button.'
+        };
+    }
+
+    return { allowed: true };
+}
+
+
 function parseUntilTime(timeStr) {
     if (!timeStr) return null;
 
@@ -697,15 +750,16 @@ function buildPanelRows(guildId) {
         .setEmoji('⚡')
         .setStyle(ButtonStyle.Danger);
 
-    const premiumButton =
-        createLinkOrButton(
-            'Get Premium Key',
-            '💎',
-            config.premiumLink,
-            'polo_premium',
-            ButtonStyle.Success
-        );
+    // Premium must be a custom button so role checks apply
+    // (Link buttons cannot be restricted by the bot).
+    const premiumButton = new ButtonBuilder()
+        .setCustomId('polo_premium')
+        .setLabel('Get Premium Key')
+        .setEmoji('💎')
+        .setStyle(ButtonStyle.Success);
 
+    // Help can remain a link if configured; open to everyone.
+    // If no link is set, it falls back to a custom button.
     const helpButton =
         createLinkOrButton(
             'Help',
@@ -2460,6 +2514,25 @@ client.on(
                 interaction.isButton()
             ) {
 
+                // Panel button access control (all polo_* buttons)
+                if (
+                    typeof interaction.customId === 'string' &&
+                    interaction.customId.startsWith('polo_')
+                ) {
+                    const access = canUsePanelButton(
+                        interaction,
+                        interaction.customId
+                    );
+
+                    if (!access.allowed) {
+                        await interaction.reply({
+                            content: access.reason,
+                            ephemeral: true
+                        });
+                        return;
+                    }
+                }
+
                 // ---------------------------------------------
                 // Redeem
                 // ---------------------------------------------
@@ -3265,10 +3338,25 @@ client.on(
                 // OTHER BUTTONS
                 // ---------------------------------------------
 
-                const replies = {
-                    polo_premium:
-                        '💎 No link has been set for **Get Premium Key** yet.',
+                if (interaction.customId === 'polo_premium') {
+                    const config = getGuildConfig(interaction.guildId) || {};
+                    const link = config.premiumLink;
 
+                    if (link) {
+                        await interaction.reply({
+                            content: `💎 **Get Premium Key**\n${link}`,
+                            ephemeral: true
+                        });
+                    } else {
+                        await interaction.reply({
+                            content: '💎 No link has been set for **Get Premium Key** yet.',
+                            ephemeral: true
+                        });
+                    }
+                    return;
+                }
+
+                const replies = {
                     polo_obfuscate:
                         '🛠️ Upload a Lua file using the `/obfuscate` command.',
 
