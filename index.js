@@ -154,6 +154,13 @@ function getOwnerIds() {
         .filter(Boolean);
 }
 
+// Config key used for guild-specific settings.
+// In DMs there is no guild, so we store under a shared global key.
+function getConfigGuildId(interaction) {
+    return interaction.guildId || '__global__';
+}
+
+
 function canUseRestrictedCommand(
     interaction
 ) {
@@ -542,37 +549,32 @@ async function registerCommands() {
     try {
 
         /*
-         * PUT replaces the complete global command set.
-         *
-         * This means old/duplicated commands are removed
-         * instead of another copy being added.
+         * Global commands work in servers AND DMs.
+         * If GUILD_ID is set, also clear that guild's command list so
+         * old guild-scoped commands don't appear as duplicates.
          */
-        /*
-         * Avoid duplicates:
-         * - If GUILD_ID is set → register guild-only (instant) and clear global
-         * - Otherwise → register global only
-         *
-         * Registering BOTH global + guild causes every command to appear twice
-         * inside that server.
-         */
+        await rest.put(
+            Routes.applicationCommands(
+                process.env.CLIENT_ID
+            ),
+            {
+                body:
+                    uniqueCommands
+            }
+        );
+
+        console.log(
+            'Global slash commands registered (servers + DMs).'
+        );
+
         if (
             process.env.GUILD_ID
         ) {
+            // Clear guild-scoped commands to prevent duplicates
             await rest.put(
                 Routes.applicationGuildCommands(
                     process.env.CLIENT_ID,
                     process.env.GUILD_ID
-                ),
-                {
-                    body:
-                        uniqueCommands
-                }
-            );
-
-            // Clear global commands so they don't stack with guild ones
-            await rest.put(
-                Routes.applicationCommands(
-                    process.env.CLIENT_ID
                 ),
                 {
                     body: []
@@ -580,21 +582,7 @@ async function registerCommands() {
             );
 
             console.log(
-                `Guild slash commands registered for ${process.env.GUILD_ID} (duplicates cleared).`
-            );
-        } else {
-            await rest.put(
-                Routes.applicationCommands(
-                    process.env.CLIENT_ID
-                ),
-                {
-                    body:
-                        uniqueCommands
-                }
-            );
-
-            console.log(
-                'Global slash commands registered successfully.'
+                `Cleared guild command duplicates for ${process.env.GUILD_ID}.`
             );
         }
 
@@ -715,10 +703,10 @@ function buildPanelRows(guildId) {
     let config = {};
 
     try {
-        config =
-            getGuildConfig(
-                guildId
-            ) || {};
+        config = {
+            ...(getGuildConfig('__global__') || {}),
+            ...(getGuildConfig(guildId) || {})
+        };
 
     } catch (error) {
         console.error(
@@ -1091,7 +1079,7 @@ client.on(
                         ],
                         components:
                             buildPanelRows(
-                                interaction.guildId
+                                getConfigGuildId(interaction)
                             )
                     });
 
@@ -1395,7 +1383,7 @@ client.on(
                         );
 
                     setGuildLink(
-                        interaction.guildId,
+                        getConfigGuildId(interaction),
                         button,
                         url.trim()
                     );
@@ -1441,15 +1429,6 @@ client.on(
                         await interaction.reply({
                             content:
                                 '❌ You do not have permission to use this command.',
-                            ephemeral: true
-                        });
-                        return;
-                    }
-
-                    if (!interaction.guildId) {
-                        await interaction.reply({
-                            content:
-                                '❌ Use this command in a server.',
                             ephemeral: true
                         });
                         return;
@@ -1512,7 +1491,7 @@ client.on(
                             : 'Get Script';
 
                     setGuildLink(
-                        interaction.guildId,
+                        getConfigGuildId(interaction),
                         key,
                         content
                     );
@@ -1559,7 +1538,7 @@ client.on(
                         );
 
                     setPremiumRole(
-                        interaction.guildId,
+                        getConfigGuildId(interaction),
                         role.id
                     );
 
@@ -1602,7 +1581,7 @@ client.on(
                         );
 
                     setResetLimit(
-                        interaction.guildId,
+                        getConfigGuildId(interaction),
                         amount
                     );
 
@@ -2204,7 +2183,7 @@ client.on(
                     }
 
                     setSupportStatus(
-                        interaction.guildId,
+                        getConfigGuildId(interaction),
                         until.getTime(),
                         reason
                     );
@@ -2338,16 +2317,25 @@ client.on(
                         return;
                     }
 
-                    // Public message — everyone can see it
-                    await interaction.channel.send({
-                        content: message
-                    });
+                    // Public message — everyone can see it (works in servers and DMs)
+                    if (
+                        interaction.guildId
+                    ) {
+                        await interaction.channel.send({
+                            content: message
+                        });
 
-                    await interaction.reply({
-                        content:
-                            '✅ Free-script message posted.',
-                        ephemeral: true
-                    });
+                        await interaction.reply({
+                            content:
+                                '✅ Free-script message posted.',
+                            ephemeral: true
+                        });
+                    } else {
+                        // In DMs there is no "channel post" vs reply distinction — just send the message
+                        await interaction.reply({
+                            content: message
+                        });
+                    }
 
                     return;
                 }
@@ -3493,7 +3481,11 @@ client.on(
                     interaction.customId === 'polo_xp'
                 ) {
                     const isXp = interaction.customId === 'polo_xp';
-                    const config = getGuildConfig(interaction.guildId) || {};
+                    // Prefer this server's config, fall back to global/DM config
+                    const config = {
+                        ...(getGuildConfig('__global__') || {}),
+                        ...(getGuildConfig(interaction.guildId) || {})
+                    };
                     const script =
                         (isXp ? config.xpScript : config.getScript) ||
                         '';
@@ -3540,7 +3532,10 @@ client.on(
                 // ---------------------------------------------
 
                 if (interaction.customId === 'polo_premium') {
-                    const config = getGuildConfig(interaction.guildId) || {};
+                    const config = {
+                        ...(getGuildConfig('__global__') || {}),
+                        ...(getGuildConfig(interaction.guildId) || {})
+                    };
                     const link = config.premiumLink;
 
                     if (link) {
