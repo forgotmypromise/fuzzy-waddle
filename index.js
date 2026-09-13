@@ -2005,7 +2005,6 @@ client.on(
                             true
                         );
 
-                    // Works in servers and DMs (DMs use global app status)
                     const appStatus = getAppStatus(interaction.guildId);
 
                     if (!isAppOpen(interaction.guildId, role)) {
@@ -2021,8 +2020,7 @@ client.on(
                                 `❌ **${label}** applications are currently **closed**.\n\n` +
                                 (openOnes.length
                                     ? `Currently open: **${openOnes.join(', ')}**`
-                                    : 'No applications are open right now.') +
-                                `\n\n_Admin tip: run \`/toggleapps type:${role} state:open\` (works in DMs or servers)._`,
+                                    : 'No applications are open right now.'),
                             ephemeral: true
                         });
 
@@ -2321,8 +2319,6 @@ client.on(
                         );
                     const isOpen = state === 'open';
 
-                    // In DMs, guildId is null → stored under global key
-                    // In a server, stored per-guild
                     const newStatus = setAppStatus(
                         interaction.guildId,
                         type,
@@ -2337,7 +2333,7 @@ client.on(
 
                     await interaction.reply({
                         content:
-                            `✅ Application status updated (global — works in DMs and servers).\n\n` +
+                            `✅ Application status updated.\n\n` +
                             `${format('media')}\n` +
                             `${format('staff')}\n` +
                             `${format('helper')}`,
