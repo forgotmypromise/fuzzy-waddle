@@ -2005,17 +2005,7 @@ client.on(
                             true
                         );
 
-                    // Must be used in a server
-                    if (!interaction.guildId) {
-                        await interaction.reply({
-                            content:
-                                '❌ Please use `/apply` inside the server (not in DMs).',
-                            ephemeral: true
-                        });
-                        return;
-                    }
-
-                    // Check if this application type is open
+                    // Works in servers and DMs (DMs use global app status)
                     const appStatus = getAppStatus(interaction.guildId);
 
                     if (!isAppOpen(interaction.guildId, role)) {
@@ -2032,7 +2022,7 @@ client.on(
                                 (openOnes.length
                                     ? `Currently open: **${openOnes.join(', ')}**`
                                     : 'No applications are open right now.') +
-                                `\n\n_Admin tip: run \`/toggleapps type:${role} state:open\` in this server._`,
+                                `\n\n_Admin tip: run \`/toggleapps type:${role} state:open\` (works in DMs or servers)._`,
                             ephemeral: true
                         });
 
@@ -2319,15 +2309,6 @@ client.on(
                         return;
                     }
 
-                    if (!interaction.guildId) {
-                        await interaction.reply({
-                            content:
-                                '❌ Please use `/toggleapps` inside the server (not in DMs).',
-                            ephemeral: true
-                        });
-                        return;
-                    }
-
                     const type =
                         interaction.options.getString(
                             'type',
@@ -2340,6 +2321,8 @@ client.on(
                         );
                     const isOpen = state === 'open';
 
+                    // In DMs, guildId is null → stored under global key
+                    // In a server, stored per-guild
                     const newStatus = setAppStatus(
                         interaction.guildId,
                         type,
@@ -2354,11 +2337,10 @@ client.on(
 
                     await interaction.reply({
                         content:
-                            `✅ Application status updated for this server.\n\n` +
+                            `✅ Application status updated (global — works in DMs and servers).\n\n` +
                             `${format('media')}\n` +
                             `${format('staff')}\n` +
-                            `${format('helper')}\n\n` +
-                            `_Guild ID: \`${interaction.guildId}\`_`,
+                            `${format('helper')}`,
                         ephemeral: true
                     });
 
