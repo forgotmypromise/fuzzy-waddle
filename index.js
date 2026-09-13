@@ -32,7 +32,9 @@ const {
     getSupportStatus,
     getAppStatus,
     setAppStatus,
-    isAppOpen
+    isAppOpen,
+    getAnnounceText,
+    setAnnounceText
 } = require('./lib/storage');
 
 const resetsModule = require('./lib/resets');
@@ -154,30 +156,16 @@ function canUseRestrictedCommand(
     const userId =
         interaction.user.id;
 
+    // Owners always allowed
     if (
         getOwnerIds().includes(userId)
     ) {
         return true;
     }
 
+    // Whitelisted users allowed
     if (
         isWhitelisted(userId)
-    ) {
-        return true;
-    }
-
-    if (
-        interaction.memberPermissions?.has(
-            'Administrator'
-        )
-    ) {
-        return true;
-    }
-
-    if (
-        interaction.memberPermissions?.has(
-            'ManageGuild'
-        )
     ) {
         return true;
     }
@@ -188,32 +176,10 @@ function canUseRestrictedCommand(
 function canManageWhitelist(
     interaction
 ) {
-    const userId =
-        interaction.user.id;
-
-    if (
-        getOwnerIds().includes(userId)
-    ) {
-        return true;
-    }
-
-    if (
-        interaction.memberPermissions?.has(
-            'Administrator'
-        )
-    ) {
-        return true;
-    }
-
-    if (
-        interaction.memberPermissions?.has(
-            'ManageGuild'
-        )
-    ) {
-        return true;
-    }
-
-    return false;
+    // Only bot owners can manage the whitelist
+    return getOwnerIds().includes(
+        interaction.user.id
+    );
 }
 
 
@@ -1599,7 +1565,7 @@ client.on(
                     'disable'
                 ) {
                     if (
-                        !canManageWhitelist(
+                        !canUseRestrictedCommand(
                             interaction
                         )
                     ) {
@@ -1699,7 +1665,7 @@ client.on(
                     'enable'
                 ) {
                     if (
-                        !canManageWhitelist(
+                        !canUseRestrictedCommand(
                             interaction
                         )
                     ) {
@@ -1800,7 +1766,7 @@ client.on(
                     'blacklist'
                 ) {
                     if (
-                        !canManageWhitelist(
+                        !canUseRestrictedCommand(
                             interaction
                         )
                     ) {
@@ -1921,7 +1887,7 @@ client.on(
                     'genkeys'
                 ) {
                     if (
-                        !canManageWhitelist(
+                        !canUseRestrictedCommand(
                             interaction
                         )
                     ) {
@@ -2145,6 +2111,115 @@ client.on(
                             `Until: **${readable}**\n` +
                             `Reason: **${reasonText}**\n\n` +
                             `New tickets will now show this status until that time.`,
+                        ephemeral: true
+                    });
+
+                    return;
+                }
+
+
+
+                // ---------------------------------------------
+                // /setannounce
+                // ---------------------------------------------
+
+                if (
+                    interaction.commandName ===
+                    'setannounce'
+                ) {
+                    if (
+                        !canUseRestrictedCommand(
+                            interaction
+                        )
+                    ) {
+                        await interaction.reply({
+                            content:
+                                '❌ You do not have permission to set the announce message.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    const text =
+                        interaction.options.getString(
+                            'text',
+                            true
+                        ).trim();
+
+                    if (!text) {
+                        await interaction.reply({
+                            content:
+                                '❌ Announce text cannot be empty.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    setAnnounceText(text);
+
+                    await interaction.reply({
+                        content:
+                            '✅ Announce message saved.\n\n' +
+                            'Use `/announce` to post it for everyone to see.',
+                        ephemeral: true
+                    });
+
+                    return;
+                }
+
+
+                // ---------------------------------------------
+                // /announce
+                // ---------------------------------------------
+
+                if (
+                    interaction.commandName ===
+                    'announce'
+                ) {
+                    if (
+                        !canUseRestrictedCommand(
+                            interaction
+                        )
+                    ) {
+                        await interaction.reply({
+                            content:
+                                '❌ You do not have permission to announce.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    const custom =
+                        interaction.options.getString(
+                            'text'
+                        )?.trim();
+
+                    const message =
+                        custom ||
+                        getAnnounceText();
+
+                    if (!message) {
+                        await interaction.reply({
+                            content:
+                                '❌ No announce message set.\n\n' +
+                                'Use `/setannounce text:...` first, or pass `text` to this command.',
+                            ephemeral: true
+                        });
+
+                        return;
+                    }
+
+                    // Public message — everyone can see it
+                    await interaction.channel.send({
+                        content: message
+                    });
+
+                    await interaction.reply({
+                        content:
+                            '✅ Announce posted.',
                         ephemeral: true
                     });
 
