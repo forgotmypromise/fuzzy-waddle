@@ -683,23 +683,19 @@ function buildPanelRows(guildId) {
         );
     }
 
-    const getButton =
-        createLinkOrButton(
-            'Get Script',
-            '📄',
-            config.getLink,
-            'polo_get',
-            ButtonStyle.Danger
-        );
+    // Get Script / Get XP always use custom buttons so we can
+    // send the configured script as an ephemeral message.
+    const getButton = new ButtonBuilder()
+        .setCustomId('polo_get')
+        .setLabel('Get Script')
+        .setEmoji('📄')
+        .setStyle(ButtonStyle.Danger);
 
-    const xpButton =
-        createLinkOrButton(
-            'Get XP Script',
-            '⚡',
-            config.xpLink,
-            'polo_xp',
-            ButtonStyle.Danger
-        );
+    const xpButton = new ButtonBuilder()
+        .setCustomId('polo_xp')
+        .setLabel('Get XP Script')
+        .setEmoji('⚡')
+        .setStyle(ButtonStyle.Danger);
 
     const premiumButton =
         createLinkOrButton(
@@ -1280,6 +1276,117 @@ client.on(
                 // ---------------------------------------------
                 // /setpremiumrole
                 // ---------------------------------------------
+
+
+
+                // =================================================
+                // /setscript
+                // =================================================
+
+                if (
+                    interaction.commandName ===
+                    'setscript'
+                ) {
+                    if (
+                        !canUseRestrictedCommand(
+                            interaction
+                        )
+                    ) {
+                        await interaction.reply({
+                            content:
+                                '❌ You do not have permission to use this command.',
+                            ephemeral: true
+                        });
+                        return;
+                    }
+
+                    if (!interaction.guildId) {
+                        await interaction.reply({
+                            content:
+                                '❌ Use this command in a server.',
+                            ephemeral: true
+                        });
+                        return;
+                    }
+
+                    const type =
+                        interaction.options.getString(
+                            'type',
+                            true
+                        );
+
+                    let content =
+                        interaction.options.getString(
+                            'content'
+                        ) || '';
+
+                    const file =
+                        interaction.options.getAttachment(
+                            'file'
+                        );
+
+                    if (file) {
+                        try {
+                            const res = await fetch(file.url);
+                            if (!res.ok) {
+                                throw new Error(
+                                    `Failed to download file (${res.status})`
+                                );
+                            }
+                            content = await res.text();
+                        } catch (err) {
+                            await interaction.reply({
+                                content:
+                                    `❌ Could not read the uploaded file: ${err.message || err}`,
+                                ephemeral: true
+                            });
+                            return;
+                        }
+                    }
+
+                    content = String(content || '').trim();
+
+                    if (!content) {
+                        await interaction.reply({
+                            content:
+                                '❌ Provide script `content` text and/or a `file` attachment.',
+                            ephemeral: true
+                        });
+                        return;
+                    }
+
+                    const key =
+                        type === 'xp'
+                            ? 'xpScript'
+                            : 'getScript';
+
+                    const label =
+                        type === 'xp'
+                            ? 'Get XP Script'
+                            : 'Get Script';
+
+                    setGuildLink(
+                        interaction.guildId,
+                        key,
+                        content
+                    );
+
+                    const preview =
+                        content.length > 200
+                            ? content.slice(0, 200) + '…'
+                            : content;
+
+                    await interaction.reply({
+                        content:
+                            `✅ **${label}** content saved (${content.length} characters).\n\n` +
+                            `Preview:\n\`\`\`lua\n${preview}\n\`\`\`\n` +
+                            `Users who press the panel button will receive this as an ephemeral message only they can see.`,
+                        ephemeral: true
+                    });
+
+                    return;
+                }
+
 
                 if (
                     interaction.commandName ===
@@ -3104,16 +3211,61 @@ client.on(
 
 
                 // ---------------------------------------------
+                // GET SCRIPT / GET XP SCRIPT
+                // ---------------------------------------------
+
+                if (
+                    interaction.customId === 'polo_get' ||
+                    interaction.customId === 'polo_xp'
+                ) {
+                    const isXp = interaction.customId === 'polo_xp';
+                    const config = getGuildConfig(interaction.guildId) || {};
+                    const script =
+                        (isXp ? config.xpScript : config.getScript) ||
+                        '';
+
+                    const label = isXp ? 'Get XP Script' : 'Get Script';
+
+                    if (!script || !String(script).trim()) {
+                        await interaction.reply({
+                            content:
+                                `📄 No script has been set for **${label}** yet.\n` +
+                                `An admin can set it with \`/setscript\`.`,
+                            ephemeral: true
+                        });
+                        return;
+                    }
+
+                    const body = String(script).trim();
+
+                    // Discord message limit is 2000 chars — send as file if longer
+                    if (body.length <= 1900) {
+                        await interaction.reply({
+                            content:
+                                `📄 **${label}**\n\`\`\`lua\n${body}\n\`\`\``,
+                            ephemeral: true
+                        });
+                    } else {
+                        const buf = Buffer.from(body, 'utf8');
+                        const file = new AttachmentBuilder(buf, {
+                            name: isXp ? 'xp-script.lua' : 'script.lua'
+                        });
+
+                        await interaction.reply({
+                            content: `📄 **${label}** (file attached — only you can see this)`,
+                            files: [file],
+                            ephemeral: true
+                        });
+                    }
+
+                    return;
+                }
+
+                // ---------------------------------------------
                 // OTHER BUTTONS
                 // ---------------------------------------------
 
                 const replies = {
-                    polo_get:
-                        '📄 No link has been set for **Get Script** yet.',
-
-                    polo_xp:
-                        '⚡ No link has been set for **Get XP Script** yet.',
-
                     polo_premium:
                         '💎 No link has been set for **Get Premium Key** yet.',
 
