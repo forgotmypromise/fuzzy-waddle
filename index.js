@@ -503,6 +503,43 @@ async function cloudflareRequest(
 }
 
 
+
+/**
+ * Normalize /status API response into a single license object.
+ * Worker may return { license } or { licenses: [...] } / { keys: [...] }.
+ */
+function pickLicenseFromStatus(status) {
+    if (!status || typeof status !== 'object') {
+        return null;
+    }
+
+    if (status.license && typeof status.license === 'object') {
+        return status.license;
+    }
+
+    const list =
+        (Array.isArray(status.licenses) && status.licenses) ||
+        (Array.isArray(status.keys) && status.keys) ||
+        [];
+
+    if (!list.length) {
+        return null;
+    }
+
+    return (
+        list.find(l => l && l.status === 'activated') ||
+        list.find(
+            l =>
+                l &&
+                (l.status === 'discord_redeemed' ||
+                    l.discordId)
+        ) ||
+        list[0] ||
+        null
+    );
+}
+
+
 // =====================================================
 // DISCORD CLIENT
 // =====================================================
@@ -2908,12 +2945,20 @@ client.on(
                                 '/status',
                                 {
                                     discordId:
-                                        interaction.user.id
+                                        String(
+                                            interaction.user.id
+                                        )
                                 }
                             );
 
+                        const license =
+                            pickLicenseFromStatus(
+                                licenseInfo
+                            );
+
                         if (
-                            !licenseInfo.license
+                            !license ||
+                            !license.key
                         ) {
                             await interaction.editReply({
                                 content:
@@ -2922,9 +2967,6 @@ client.on(
 
                             return;
                         }
-
-                        const license =
-                            licenseInfo.license;
 
                         await cloudflareRequest(
                             '/reset-roblox',
@@ -3135,12 +3177,19 @@ client.on(
                                 '/status',
                                 {
                                     discordId:
-                                        interaction.user.id
+                                        String(
+                                            interaction.user.id
+                                        )
                                 }
                             );
 
+                        const license =
+                            pickLicenseFromStatus(
+                                status
+                            );
+
                         if (
-                            !status.license
+                            !license
                         ) {
                             await interaction.editReply({
                                 content:
@@ -3151,9 +3200,6 @@ client.on(
 
                             return;
                         }
-
-                        const license =
-                            status.license;
 
                         const discordLinked =
                             license.discordId
